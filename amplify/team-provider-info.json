@@ -1,0 +1,20 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-safepulse-dev-aa26d-authRole",
+      "UnauthRoleArn": "arn:aws:iam::465357105395:role/amplify-safepulse-dev-aa26d-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::465357105395:role/amplify-safepulse-dev-aa26d-authRole",
+      "Region": "us-east-1",
+      "DeploymentBucketName": "amplify-safepulse-dev-aa26d-deployment",
+      "UnauthRoleName": "amplify-safepulse-dev-aa26d-unauthRole",
+      "StackName": "amplify-safepulse-dev-aa26d",
+      "StackId": "arn:aws:cloudformation:us-east-1:465357105395:stack/amplify-safepulse-dev-aa26d/9f4329f0-feda-11f0-acc6-12856a54de71",
+      "AmplifyAppId": "d1wnapeemt1jr1"
+    },
+    "categories": {
+      "auth": {
+        "safepulse85675a43": {}
+      }
+    }
+  }
+}

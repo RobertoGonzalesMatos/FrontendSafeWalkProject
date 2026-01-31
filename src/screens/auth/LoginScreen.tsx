@@ -22,7 +22,7 @@ const COLORS = {
 };
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +35,18 @@ export default function LoginScreen() {
     } catch (e: any) {
       Alert.alert("Login failed", e.message ?? String(e));
     } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onGoogleLogin() {
+    try {
+      setLoading(true);
+      await signInWithGoogle();
+      // Note: signInWithGoogle handles redirects, so we might not reach here immediately
+      // or at all if redirect happens fast. 
+    } catch (e: any) {
+      Alert.alert("Google Login failed", e.message ?? String(e));
       setLoading(false);
     }
   }
@@ -69,8 +81,41 @@ export default function LoginScreen() {
             Sign in
           </Text>
 
+          <Pressable
+            onPress={onGoogleLogin}
+            disabled={loading}
+            style={({ pressed }) => ({
+              backgroundColor: "white", // Google White
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: "center",
+              marginTop: 8,
+              opacity: loading ? 0.7 : 1,
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: 10
+            })}
+          >
+            {/* Simple Google G placeholder or just text */}
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "700",
+                color: "black",
+              }}
+            >
+              Sign in with Google
+            </Text>
+          </Pressable>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 }}>
+            <View style={{ height: 1, backgroundColor: COLORS.border, flex: 1 }} />
+            <Text style={{ color: COLORS.muted, fontSize: 12 }}>OR</Text>
+            <View style={{ height: 1, backgroundColor: COLORS.border, flex: 1 }} />
+          </View>
+
           <View style={{ gap: 8 }}>
-            <Text style={{ color: COLORS.muted, fontSize: 13 }}>Email</Text>
+            <Text style={{ color: COLORS.muted, fontSize: 13 }}>Email (Dev)</Text>
             <TextInput
               placeholder="name@brown.edu"
               placeholderTextColor={COLORS.muted}
@@ -90,7 +135,7 @@ export default function LoginScreen() {
 
           <View style={{ gap: 8 }}>
             <Text style={{ color: COLORS.muted, fontSize: 13 }}>
-              Access code
+              Access code (Dev)
             </Text>
             <TextInput
               placeholder="••••••"
@@ -129,7 +174,7 @@ export default function LoginScreen() {
                 color: "#0B1C2D",
               }}
             >
-              {loading ? "Signing in…" : "Login"}
+              {loading ? "Signing in…" : "Dev Login"}
             </Text>
           </Pressable>
 

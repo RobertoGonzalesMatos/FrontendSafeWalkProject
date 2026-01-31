@@ -63,6 +63,7 @@ export const API = {
           id: `mock-${role.toLowerCase()}-${email || "user"}`,
           role,
           name: role === "VOLUNTEER" ? "Volunteer" : "Student",
+          email: email || "mock@brown.edu",
         },
       };
     }

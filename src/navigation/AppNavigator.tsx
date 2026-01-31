@@ -41,7 +41,7 @@ export default function AppNavigator() {
             fontSize: 18,
           },
           headerShadowVisible: false, // clean, modern
-          headerBackTitleVisible: false,
+          headerBackTitle: "", // hide back button text
         }}
       >
         {!user ? (

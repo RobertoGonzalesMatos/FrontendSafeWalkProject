@@ -123,7 +123,7 @@ export default function StudentRequestScreen({ navigation }: Props) {
           label: destinationLabel,
           lat: destCoords.lat,
           lng: destCoords.lng,
-        } as any, // remove "as any" once your backend types include destination lat/lng
+        } as any,
         expoPushToken: pushToken,
       });
 
