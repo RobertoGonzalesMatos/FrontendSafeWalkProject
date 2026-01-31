@@ -98,9 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check for existing session on mount
   React.useEffect(() => {
-    syncUserFromSession();
-
-    // Listen for auth events (e.g. after redirect)
     let hubRemove: (() => void) | undefined;
     let isMounted = true;
 
@@ -115,15 +112,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    import("aws-amplify/utils").then(({ Hub }) => {
+    async function setup() {
+      await syncUserFromSession();
       if (!isMounted) return;
+
+      const { Hub } = await import("aws-amplify/utils");
+      if (!isMounted) return;
+
       console.log("[AuthContext] Setting up Hub listener");
       hubRemove = Hub.listen('auth', listener);
-    });
+    }
+
+    setup();
 
     return () => {
       isMounted = false;
-      if (hubRemove) hubRemove();
+      hubRemove?.();
     };
   }, []);
 
@@ -138,11 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       signInWithGoogle,
       logout: () => {
-        // Clear Amplify state to prevent "already signed in" loops
-        import("aws-amplify/auth").then(({ signOut }) => {
-          signOut({ global: false }).catch(err => console.log("[AuthContext] SignOut error", err));
-        });
-
+        // Just clear local state
+        // DO NOT call Amplify signOut - it triggers OAuth redirects
         setToken(null);
         setUser(null);
         setActiveRequest(null);

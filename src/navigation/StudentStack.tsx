@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import StudentHomeScreen from "../screens/student/StudentHomeScreen";
 import StudentRequestScreen from "../screens/student/StudentRequestScreen";
 import StudentStatusScreen from "../screens/student/StudentStatusScreen";
-import { Text } from "react-native";
+
 
 export type StudentStackParamList = {
   StudentHome: undefined;
@@ -11,7 +11,7 @@ export type StudentStackParamList = {
   StudentStatus: { requestId: string };
 };
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<StudentStackParamList>();
 
 const COLORS = {
   header: "#0B1C2D",

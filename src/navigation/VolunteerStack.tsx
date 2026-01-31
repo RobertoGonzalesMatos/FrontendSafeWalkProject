@@ -12,7 +12,7 @@ export type VolunteerStackParamList = {
   VolunteerActive: { requestId: string };
 };
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<VolunteerStackParamList>();
 
 export default function VolunteerStack() {
   return (

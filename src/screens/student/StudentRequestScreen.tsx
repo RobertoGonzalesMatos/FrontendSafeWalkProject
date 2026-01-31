@@ -71,20 +71,23 @@ export default function StudentRequestScreen({ navigation }: Props) {
     };
   }, [destCoords, pickupCoords]);
 
-  async function getCurrentLocation() {
+  async function getCurrentLocation(): Promise<{ lat: number; lng: number } | null> {
     setLoadingLoc(true);
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
       if (perm.status !== "granted") {
         Alert.alert("Location needed", "Enable location to request Safewalk.");
-        return;
+        return null;
       }
       const loc = await Location.getCurrentPositionAsync({});
-      setPickupCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      const coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      setPickupCoords(coords);
       // Keep label user-editable; default to "Current Location"
       if (!pickupLabel.trim().length) setPickupLabel("Current Location");
+      return coords;
     } catch {
       Alert.alert("Location error", "Could not fetch location.");
+      return null;
     } finally {
       setLoadingLoc(false);
     }
@@ -94,11 +97,12 @@ export default function StudentRequestScreen({ navigation }: Props) {
     setSubmitting(true);
     try {
       // Ensure pickup coords exist (from GPS)
-      if (!pickupCoords) {
-        await getCurrentLocation();
+      let coords = pickupCoords;
+      if (!coords) {
+        coords = await getCurrentLocation();
       }
 
-      if (!pickupCoords) {
+      if (!coords) {
         throw new Error("Pickup location is required.");
       }
 
@@ -123,7 +127,7 @@ export default function StudentRequestScreen({ navigation }: Props) {
           label: destinationLabel,
           lat: destCoords.lat,
           lng: destCoords.lng,
-        } as any,
+        },
         expoPushToken: pushToken,
       });
 
@@ -173,7 +177,7 @@ export default function StudentRequestScreen({ navigation }: Props) {
           />
 
           <Pressable
-            onPress={getCurrentLocation}
+            onPress={async () => await getCurrentLocation()}
             disabled={loadingLoc}
             style={({ pressed }) => ({
               backgroundColor: pressed ? COLORS.yellowDark : COLORS.yellow,

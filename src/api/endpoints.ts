@@ -253,6 +253,16 @@ export const API = {
   },
 
   declineVolunteerRequest: async (requestId: string) => {
+    if (USE_MOCK_AUTH) {
+      const req = mockRequests.get(requestId);
+      if (req) {
+        // Return request to matching pool
+        req.status = "MATCHING";
+        mockRequests.set(requestId, req);
+      }
+      return { ok: true };
+    }
+
     return apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/decline`, {
       method: "POST",
     });

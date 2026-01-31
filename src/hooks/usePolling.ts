@@ -10,5 +10,5 @@ export function usePolling(fn: () => void, ms: number, enabled: boolean) {
     return () => {
       if (ref.current) clearInterval(ref.current);
     };
-  }, [enabled, ms]);
+  }, [enabled, ms, fn]);
 }

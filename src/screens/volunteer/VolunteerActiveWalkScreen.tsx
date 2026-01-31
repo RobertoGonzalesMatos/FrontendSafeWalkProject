@@ -30,10 +30,13 @@ export default function VolunteerActiveWalkScreen({ route, navigation }: Props) 
   // Poll for status updates
   useEffect(() => {
     let active = true;
-    const interval = setInterval(async () => {
+
+    async function fetchStatus() {
       try {
         const data = await API.getStudentRequestStatus(requestId);
-        if (active) setStatus(data);
+        if (!active) return;
+
+        setStatus(data);
 
         if (data.status === "COMPLETED") {
           Alert.alert("Success", "SafeWalk Completed!");
@@ -42,7 +45,13 @@ export default function VolunteerActiveWalkScreen({ route, navigation }: Props) 
       } catch (e) {
         console.error("Polling error", e);
       }
-    }, 3000);
+    }
+
+    // Initial fetch
+    fetchStatus();
+
+    // Poll every 3 seconds
+    const interval = setInterval(fetchStatus, 3000);
 
     return () => {
       active = false;

@@ -16,7 +16,7 @@ export type LatLng = { lat: number; lng: number };
 
 export type StudentCreateRequestBody = {
   pickup: { label: string; lat: number | null; lng: number | null };
-  destination: { label: string };
+  destination: { label: string; lat?: number | null; lng?: number | null };
   expoPushToken: string | null;
 };
 
