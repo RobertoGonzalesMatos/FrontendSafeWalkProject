@@ -16,7 +16,14 @@ const Stack = createNativeStackNavigator();
 
 export default function VolunteerStack() {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: "#0B1C2D" },
+        headerTintColor: "#FFFFFF",
+        headerTitleStyle: { fontWeight: "800" },
+        headerShadowVisible: false,
+      }}
+    >
       <Stack.Screen
         name="VolunteerHome"
         component={VolunteerHomeScreen}

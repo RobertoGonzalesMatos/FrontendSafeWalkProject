@@ -24,6 +24,7 @@ export type StudentCreateRequestResponse = { requestId: string };
 export type StudentRequestStatus =
   | "MATCHING"
   | "ASSIGNED"
+  | "WALKING"
   | "NO_AVAILABLE"
   | "CANCELLED"
   | "COMPLETED";

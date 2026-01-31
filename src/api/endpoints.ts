@@ -20,6 +20,28 @@ type MockRequest = {
 
 const mockRequests = new Map<string, MockRequest>();
 
+// Helper to generate a 4-digit code
+const generateCode = () => Math.floor(1000 + Math.random() * 9000).toString();
+
+// Seed some initial requests for testing
+if (USE_MOCK_AUTH) {
+  const seedIds = ["req_seed_1", "req_seed_2"];
+
+  mockRequests.set(seedIds[0], {
+    requestId: seedIds[0],
+    status: "MATCHING",
+    createdAt: Date.now() - 1000 * 60 * 5, // 5 min ago
+    etaSeconds: null,
+  });
+
+  mockRequests.set(seedIds[1], {
+    requestId: seedIds[1],
+    status: "MATCHING",
+    createdAt: Date.now() - 1000 * 60 * 15, // 15 min ago
+    etaSeconds: null,
+  });
+}
+
 export const API = {
   login: async (email: string, code: string) => {
     if (USE_MOCK_AUTH) {
@@ -115,18 +137,23 @@ export const API = {
         status: req.status,
         etaSeconds: req.etaSeconds,
         volunteerLive:
-          req.status === "ASSIGNED"
+          req.status === "ASSIGNED" || req.status === "WALKING"
             ? {
-                // Fake live position (jittered)
-                lat: 41.8268 + Math.random() * 0.0005,
-                lng: -71.4025 + Math.random() * 0.0005,
-              }
+              // Fake live position (jittered)
+              lat: 41.8268 + Math.random() * 0.0005,
+              lng: -71.4025 + Math.random() * 0.0005,
+            }
             : null,
         // Optional safety codes
-        studentCode: req.status === "ASSIGNED" ? "STU-42A" : undefined,
-        volunteerCode: req.status === "ASSIGNED" ? "VOL-9XZ" : undefined,
+        studentCode:
+          req.status === "ASSIGNED" || req.status === "WALKING"
+            ? "1234" // Fixed code for demo simplicity, or use req.code if we stored it
+            : undefined,
+        volunteerCode: undefined, // Not using this flow for now
         volunteerHeadingDegrees:
-          req.status === "ASSIGNED" ? Math.floor(Math.random() * 360) : null,
+          req.status === "ASSIGNED" || req.status === "WALKING"
+            ? Math.floor(Math.random() * 360)
+            : null,
       };
     }
 
@@ -148,25 +175,107 @@ export const API = {
   },
 
   // Volunteer
-  listVolunteerRequests: () =>
-    apiFetch<VolunteerRequestListItem[]>("/volunteer/requests"),
+  listVolunteerRequests: async () => {
+    if (USE_MOCK_AUTH) {
+      // Return all MATCHING requests
+      const list: VolunteerRequestListItem[] = [];
+      for (const req of mockRequests.values()) {
+        if (req.status === "MATCHING") {
+          list.push({
+            requestId: req.requestId,
+            studentName: "Student " + req.requestId.slice(-3),
+            pickupLabel: "Main Green", // Mock data
+            destinationLabel: "SciLi", // Mock data
+            createdAt: new Date(req.createdAt).toISOString(),
+          });
+        }
+      }
+      return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+    return apiFetch<VolunteerRequestListItem[]>("/volunteer/requests");
+  },
 
-  getVolunteerRequest: (requestId: string) =>
-    apiFetch<VolunteerRequestDetail>(`/volunteer/requests/${requestId}`),
+  getVolunteerRequest: async (requestId: string) => {
+    if (USE_MOCK_AUTH) {
+      const req = mockRequests.get(requestId);
+      if (!req) return Promise.reject("Not found");
 
-  acceptVolunteerRequest: (requestId: string, studentCode?: string) =>
-    apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/accept`, {
+      // Return details
+      return {
+        requestId: req.requestId,
+        studentName: "Student " + req.requestId.slice(-3),
+        pickup: { label: "Main Green", lat: 41.8268, lng: -71.4025 },
+        destination: { label: "SciLi", lat: 41.8270, lng: -71.4000 },
+        etaToStudentSeconds: 300,
+        etaTripSeconds: 600,
+        status: (req.status === "MATCHING" ? "OPEN" : "ACCEPTED") as "OPEN" | "ACCEPTED",
+      };
+    }
+    return apiFetch<VolunteerRequestDetail>(`/volunteer/requests/${requestId}`);
+  },
+
+  acceptVolunteerRequest: async (requestId: string) => {
+    if (USE_MOCK_AUTH) {
+      const req = mockRequests.get(requestId);
+      if (req) {
+        req.status = "ASSIGNED";
+        mockRequests.set(requestId, req);
+      }
+      return { ok: true };
+    }
+
+    return apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/accept`, {
       method: "POST",
-      body: JSON.stringify({ studentCode }),
-    }),
+    });
+  },
 
-  declineVolunteerRequest: (requestId: string) =>
-    apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/decline`, {
-      method: "POST",
-    }),
+  verifyVolunteerCode: async (requestId: string, code: string) => {
+    if (USE_MOCK_AUTH) {
+      const req = mockRequests.get(requestId);
+      if (!req) throw new Error("Request not found");
 
-  completeVolunteerRequest: (requestId: string) =>
-    apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/complete`, {
+      // In a real app we'd compare against the actual generated code
+      // For demo with fixed "1234":
+      if (code === "1234") {
+        req.status = "WALKING";
+        mockRequests.set(requestId, req);
+        return { ok: true };
+      } else {
+        throw new Error("Incorrect code");
+      }
+    }
+
+    return apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/verify`, {
       method: "POST",
-    }),
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  declineVolunteerRequest: async (requestId: string) => {
+    return apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/decline`, {
+      method: "POST",
+    });
+  },
+
+  // Student marks complete
+  completeStudentRequest: async (requestId: string) => {
+    if (USE_MOCK_AUTH) {
+      const req = mockRequests.get(requestId);
+      if (req) {
+        req.status = "COMPLETED";
+        mockRequests.set(requestId, req);
+      }
+      return { ok: true };
+    }
+
+    return apiFetch<{ ok: true }>(`/student/requests/${requestId}/complete`, {
+      method: "POST",
+    });
+  },
+
+  // Volunteer marks complete (optional, if we want dual confirmation)
+  completeVolunteerRequest: async (requestId: string) => {
+    // reuse same logic or just error if only student can do it
+    return API.completeStudentRequest(requestId);
+  },
 };
