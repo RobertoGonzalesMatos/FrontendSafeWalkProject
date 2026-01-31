@@ -1,5 +1,6 @@
 import React from "react";
-import { Pressable, SafeAreaView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StudentStackParamList } from "../../navigation/StudentStack";
 import { useAuth } from "../../auth/AuthContext";
@@ -170,8 +171,8 @@ export default function StudentHomeScreen({ navigation }: Props) {
                 activeRequest.status === "ASSIGNED"
                   ? "rgba(244, 196, 48, 0.10)"
                   : pressed
-                  ? "#162133"
-                  : "transparent",
+                    ? "#162133"
+                    : "transparent",
               padding: 14,
               borderRadius: 16,
               gap: 8,

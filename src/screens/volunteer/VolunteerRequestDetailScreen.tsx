@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, SafeAreaView, Text, View, ActivityIndicator } from "react-native";
+import { Alert, Pressable, Text, View, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker } from "react-native-maps";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { VolunteerStackParamList } from "../../navigation/VolunteerStack";

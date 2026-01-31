@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Pressable, SafeAreaView, Text, View, Alert } from "react-native";
+import { Pressable, Text, View, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StudentStackParamList } from "../../navigation/StudentStack";
 import { API } from "../../api/endpoints";

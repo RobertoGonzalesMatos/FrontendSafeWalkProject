@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { FlatList, Pressable, RefreshControl, SafeAreaView, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import { VolunteerStackParamList } from "../../navigation/VolunteerStack";

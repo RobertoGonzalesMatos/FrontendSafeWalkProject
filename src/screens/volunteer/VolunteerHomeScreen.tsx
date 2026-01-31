@@ -1,5 +1,6 @@
 import React from "react";
-import { Pressable, SafeAreaView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { VolunteerStackParamList } from "../../navigation/VolunteerStack";
 import { useAuth } from "../../auth/AuthContext";

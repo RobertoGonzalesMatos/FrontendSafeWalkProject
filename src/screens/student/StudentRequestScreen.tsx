@@ -2,12 +2,12 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   Text,
   TextInput,
   View,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import MapView, { Marker, Region } from "react-native-maps";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -188,8 +188,8 @@ export default function StudentRequestScreen({ navigation }: Props) {
               {loadingLoc
                 ? "Getting location…"
                 : pickupCoords
-                ? "Update Current Location"
-                : "Use Current Location"}
+                  ? "Update Current Location"
+                  : "Use Current Location"}
             </Text>
           </Pressable>
         </View>

@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { API } from "../../api/endpoints";
 import { useAuth } from "../../auth/AuthContext";
 
