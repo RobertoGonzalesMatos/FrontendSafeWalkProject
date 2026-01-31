@@ -3,11 +3,11 @@ import { Alert, Pressable, Text, View, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker } from "react-native-maps";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { VolunteerStackParamList } from "../../navigation/VolunteerStack";
+import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 import { API } from "../../api/endpoints";
-import { VolunteerRequestDetail } from "../../api/types";
+import { SafewalkerRequestDetail } from "../../api/types";
 
-type Props = NativeStackScreenProps<VolunteerStackParamList, "VolunteerDetail">;
+type Props = NativeStackScreenProps<SafewalkerStackParamList, "SafewalkerDetail">;
 
 const COLORS = {
   bg: "#0F172A",
@@ -20,9 +20,9 @@ const COLORS = {
   danger: "#EF4444",
 };
 
-export default function VolunteerRequestDetailScreen({ route, navigation }: Props) {
+export default function SafewalkerRequestDetailScreen({ route, navigation }: Props) {
   const { requestId } = route.params;
-  const [request, setRequest] = useState<VolunteerRequestDetail | null>(null);
+  const [request, setRequest] = useState<SafewalkerRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
 
@@ -33,7 +33,7 @@ export default function VolunteerRequestDetailScreen({ route, navigation }: Prop
   const loadRequest = async () => {
     try {
       setLoading(true);
-      const data = await API.getVolunteerRequest(requestId);
+      const data = await API.getSafewalkerRequest(requestId);
       setRequest(data);
     } catch (e) {
       Alert.alert("Error", "Could not load request details");
@@ -46,9 +46,9 @@ export default function VolunteerRequestDetailScreen({ route, navigation }: Prop
   const handleAccept = async () => {
     try {
       setAccepting(true);
-      await API.acceptVolunteerRequest(requestId);
+      await API.acceptSafewalkerRequest(requestId);
       // Navigate to Active Walk
-      navigation.replace("VolunteerActive", { requestId });
+      navigation.replace("SafewalkerActive", { requestId });
     } catch (e) {
       Alert.alert("Error", "Failed to accept request");
     } finally {

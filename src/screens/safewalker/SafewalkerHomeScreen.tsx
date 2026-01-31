@@ -2,10 +2,10 @@ import React from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { VolunteerStackParamList } from "../../navigation/VolunteerStack";
+import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 import { useAuth } from "../../auth/AuthContext";
 
-type Props = NativeStackScreenProps<VolunteerStackParamList, "VolunteerHome">;
+type Props = NativeStackScreenProps<SafewalkerStackParamList, "SafewalkerHome">;
 
 const COLORS = {
   bg: "#0F172A",
@@ -18,7 +18,7 @@ const COLORS = {
   red: "#EF4444",
 };
 
-export default function VolunteerHomeScreen({ navigation }: Props) {
+export default function SafewalkerHomeScreen({ navigation }: Props) {
   const { logout } = useAuth();
 
   return (
@@ -29,7 +29,7 @@ export default function VolunteerHomeScreen({ navigation }: Props) {
             Welcome,
           </Text>
           <Text style={{ color: COLORS.yellow, fontSize: 32, fontWeight: "900" }}>
-            Volunteer
+            SafeWalker
           </Text>
           <Text style={{ color: COLORS.muted, marginTop: 10, fontSize: 16 }}>
             Ready to help students get home safely?
@@ -37,7 +37,7 @@ export default function VolunteerHomeScreen({ navigation }: Props) {
         </View>
 
         <Pressable
-          onPress={() => navigation.navigate("VolunteerList")}
+          onPress={() => navigation.navigate("SafewalkerList")}
           style={({ pressed }) => ({
             backgroundColor: pressed ? COLORS.yellowDark : COLORS.yellow,
             paddingVertical: 18,

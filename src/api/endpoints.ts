@@ -5,8 +5,8 @@ import type {
   StudentCreateRequestBody,
   StudentCreateRequestResponse,
   StudentRequestStatusResponse,
-  VolunteerRequestDetail,
-  VolunteerRequestListItem,
+  SafewalkerRequestDetail,
+  SafewalkerRequestListItem,
 } from "./types";
 const USE_MOCK_AUTH = true;
 
@@ -15,7 +15,7 @@ type MockRequest = {
   status: StudentRequestStatusResponse["status"];
   createdAt: number;
   etaSeconds: number | null;
-  volunteerHeadingDegrees?: number | null;
+  safewalkerHeadingDegrees?: number | null;
 };
 
 const mockRequests = new Map<string, MockRequest>();
@@ -46,13 +46,13 @@ export const API = {
   login: async (email: string, code: string) => {
     if (USE_MOCK_AUTH) {
       // Super simple role rule for hackathon:
-      // - code "volunteer" => volunteer
+      // - code "safewalker" => safewalker
       // - otherwise => student
       const role: Role =
-        code.toLowerCase() === "volunteer" ? "VOLUNTEER" : "STUDENT";
+        code.toLowerCase() === "safewalker" ? "SAFEWALKER" : "STUDENT";
 
       // Optional: allow "v" or "s"
-      // const role = code.toLowerCase().startsWith("v") ? "VOLUNTEER" : "STUDENT";
+      // const role = code.toLowerCase().startsWith("v") ? "SAFEWALKER" : "STUDENT";
 
       // Simulate network delay
       await new Promise((r) => setTimeout(r, 400));
@@ -62,7 +62,7 @@ export const API = {
         user: {
           id: `mock-${role.toLowerCase()}-${email || "user"}`,
           role,
-          name: role === "VOLUNTEER" ? "Volunteer" : "Student",
+          name: role === "SAFEWALKER" ? "SafeWalker" : "Student",
           email: email || "mock@brown.edu",
         },
       };
@@ -95,7 +95,7 @@ export const API = {
         const req = mockRequests.get(requestId);
         if (!req || req.status !== "MATCHING") return;
 
-        // 70% chance a volunteer is found
+        // 70% chance a safewalker is found
         const found = Math.random() < 0.7;
 
         if (found) {
@@ -129,7 +129,7 @@ export const API = {
           requestId,
           status: "CANCELLED",
           etaSeconds: null,
-          volunteerLive: null,
+          safewalkerLive: null,
         };
       }
 
@@ -137,7 +137,7 @@ export const API = {
         requestId,
         status: req.status,
         etaSeconds: req.etaSeconds,
-        volunteerLive:
+        safewalkerLive:
           req.status === "ASSIGNED" || req.status === "WALKING"
             ? {
               // Fake live position (jittered)
@@ -150,8 +150,8 @@ export const API = {
           req.status === "ASSIGNED" || req.status === "WALKING"
             ? "1234" // Fixed code for demo simplicity, or use req.code if we stored it
             : undefined,
-        volunteerCode: undefined, // Not using this flow for now
-        volunteerHeadingDegrees:
+        safewalkerCode: undefined, // Not using this flow for now
+        safewalkerHeadingDegrees:
           req.status === "ASSIGNED" || req.status === "WALKING"
             ? Math.floor(Math.random() * 360)
             : null,
@@ -175,11 +175,11 @@ export const API = {
     });
   },
 
-  // Volunteer
-  listVolunteerRequests: async () => {
+  // SafeWalker
+  listSafewalkerRequests: async () => {
     if (USE_MOCK_AUTH) {
       // Return all MATCHING requests
-      const list: VolunteerRequestListItem[] = [];
+      const list: SafewalkerRequestListItem[] = [];
       for (const req of mockRequests.values()) {
         if (req.status === "MATCHING") {
           list.push({
@@ -193,10 +193,10 @@ export const API = {
       }
       return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
-    return apiFetch<VolunteerRequestListItem[]>("/volunteer/requests");
+    return apiFetch<SafewalkerRequestListItem[]>("/safewalker/requests");
   },
 
-  getVolunteerRequest: async (requestId: string) => {
+  getSafewalkerRequest: async (requestId: string) => {
     if (USE_MOCK_AUTH) {
       const req = mockRequests.get(requestId);
       if (!req) return Promise.reject("Not found");
@@ -212,10 +212,10 @@ export const API = {
         status: (req.status === "MATCHING" ? "OPEN" : "ACCEPTED") as "OPEN" | "ACCEPTED",
       };
     }
-    return apiFetch<VolunteerRequestDetail>(`/volunteer/requests/${requestId}`);
+    return apiFetch<SafewalkerRequestDetail>(`/safewalker/requests/${requestId}`);
   },
 
-  acceptVolunteerRequest: async (requestId: string) => {
+  acceptSafewalkerRequest: async (requestId: string) => {
     if (USE_MOCK_AUTH) {
       const req = mockRequests.get(requestId);
       if (req) {
@@ -225,12 +225,12 @@ export const API = {
       return { ok: true };
     }
 
-    return apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/accept`, {
+    return apiFetch<{ ok: true }>(`/safewalker/requests/${requestId}/accept`, {
       method: "POST",
     });
   },
 
-  verifyVolunteerCode: async (requestId: string, code: string) => {
+  verifySafewalkerCode: async (requestId: string, code: string) => {
     if (USE_MOCK_AUTH) {
       const req = mockRequests.get(requestId);
       if (!req) throw new Error("Request not found");
@@ -246,13 +246,13 @@ export const API = {
       }
     }
 
-    return apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/verify`, {
+    return apiFetch<{ ok: true }>(`/safewalker/requests/${requestId}/verify`, {
       method: "POST",
       body: JSON.stringify({ code }),
     });
   },
 
-  declineVolunteerRequest: async (requestId: string) => {
+  declineSafewalkerRequest: async (requestId: string) => {
     if (USE_MOCK_AUTH) {
       const req = mockRequests.get(requestId);
       if (req) {
@@ -263,7 +263,7 @@ export const API = {
       return { ok: true };
     }
 
-    return apiFetch<{ ok: true }>(`/volunteer/requests/${requestId}/decline`, {
+    return apiFetch<{ ok: true }>(`/safewalker/requests/${requestId}/decline`, {
       method: "POST",
     });
   },
@@ -284,8 +284,8 @@ export const API = {
     });
   },
 
-  // Volunteer marks complete (optional, if we want dual confirmation)
-  completeVolunteerRequest: async (requestId: string) => {
+  // SafeWalker marks complete (optional, if we want dual confirmation)
+  completeSafewalkerRequest: async (requestId: string) => {
     // reuse same logic or just error if only student can do it
     return API.completeStudentRequest(requestId);
   },

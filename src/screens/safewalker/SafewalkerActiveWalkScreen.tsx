@@ -3,11 +3,11 @@ import { Alert, Pressable, Text, TextInput, View, ActivityIndicator } from "reac
 import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { VolunteerStackParamList } from "../../navigation/VolunteerStack";
+import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 import { API } from "../../api/endpoints";
 import { StudentRequestStatusResponse } from "../../api/types";
 
-type Props = NativeStackScreenProps<VolunteerStackParamList, "VolunteerActive">;
+type Props = NativeStackScreenProps<SafewalkerStackParamList, "SafewalkerActive">;
 
 const COLORS = {
   bg: "#0F172A",
@@ -21,7 +21,7 @@ const COLORS = {
   inputBg: "#0B1C2D",
 };
 
-export default function VolunteerActiveWalkScreen({ route, navigation }: Props) {
+export default function SafewalkerActiveWalkScreen({ route, navigation }: Props) {
   const { requestId } = route.params;
   const [status, setStatus] = useState<StudentRequestStatusResponse | null>(null);
   const [code, setCode] = useState("");
@@ -67,7 +67,7 @@ export default function VolunteerActiveWalkScreen({ route, navigation }: Props) 
 
     setVerifying(true);
     try {
-      await API.verifyVolunteerCode(requestId, code);
+      await API.verifySafewalkerCode(requestId, code);
       // Status update will be picked up by polling, or we can force fetch
       Alert.alert("Verified!", "Start walking to the destination.");
     } catch (e) {
@@ -91,7 +91,7 @@ export default function VolunteerActiveWalkScreen({ route, navigation }: Props) 
   // We need logic to know where to show marker.
   // Since we rely on mock data, let's just show Map centered on Student (if assigned) or Dest (if walking).
 
-  // Note: Mock API returns `volunteerLive` but doesn't exactly give us stored pickup/dest coords in the STATUS response.
+  // Note: Mock API returns `safewalkerLive` but doesn't exactly give us stored pickup/dest coords in the STATUS response.
   // In a real app we'd merge response or fetch details again.
   // For now, let's assume we can see student's live location.
 
@@ -110,14 +110,14 @@ export default function VolunteerActiveWalkScreen({ route, navigation }: Props) 
           }}
           showsUserLocation
         >
-          {/* Volunteer (User) is shown via showsUserLocation */}
+          {/* SafeWalker (User) is shown via showsUserLocation */}
 
           {/* Student Location (Approximated for this view) */}
-          {status.volunteerLive && !isWalking && (
+          {status.safewalkerLive && !isWalking && (
             <Marker
               coordinate={{
-                latitude: status.volunteerLive.lat,
-                longitude: status.volunteerLive.lng,
+                latitude: status.safewalkerLive.lat,
+                longitude: status.safewalkerLive.lng,
               }}
               title="Student Location"
               pinColor="cyan"

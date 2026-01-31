@@ -7,7 +7,7 @@ type ActiveRequestSummary = {
   status: "MATCHING" | "ASSIGNED";
   etaSeconds?: number | null;
   studentCode?: string;
-  volunteerCode?: string;
+  safewalkerCode?: string;
 };
 
 type AuthContextValue = {

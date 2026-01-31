@@ -8,7 +8,7 @@ import MapView, {
 } from "react-native-maps";
 
 type Props = {
-  volunteer: { lat: number; lng: number };
+  safewalker: { lat: number; lng: number };
   headingDegrees?: number | null;
   pickup?: { lat: number; lng: number } | null;
 };
@@ -47,25 +47,25 @@ function buildHeadingCone(
   return points;
 }
 
-export default function VolunteerLiveMap({
-  volunteer,
+export default function SafewalkerLiveMap({
+  safewalker,
   headingDegrees,
   pickup,
 }: Props) {
   const region: Region = useMemo(
     () => ({
-      latitude: volunteer.lat,
-      longitude: volunteer.lng,
+      latitude: safewalker.lat,
+      longitude: safewalker.lng,
       latitudeDelta: 0.005,
       longitudeDelta: 0.005,
     }),
-    [volunteer.lat, volunteer.lng]
+    [safewalker.lat, safewalker.lng]
   );
 
   const cone = useMemo(() => {
     if (headingDegrees == null) return null;
-    return buildHeadingCone(volunteer.lat, volunteer.lng, headingDegrees);
-  }, [volunteer.lat, volunteer.lng, headingDegrees]);
+    return buildHeadingCone(safewalker.lat, safewalker.lng, headingDegrees);
+  }, [safewalker.lat, safewalker.lng, headingDegrees]);
 
   return (
     <View
@@ -100,7 +100,7 @@ export default function VolunteerLiveMap({
         )} */}
 
         <Marker
-          coordinate={{ latitude: volunteer.lat, longitude: volunteer.lng }}
+          coordinate={{ latitude: safewalker.lat, longitude: safewalker.lng }}
           anchor={{ x: 0.5, y: 0.5 }}
         >
           <View

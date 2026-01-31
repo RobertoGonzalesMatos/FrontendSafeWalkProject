@@ -143,7 +143,7 @@ export default function StudentHomeScreen({ navigation }: Props) {
 
           <Text style={{ fontSize: 15, color: COLORS.muted, lineHeight: 20 }}>
             Request a Safewalk in one tap. We’ll match you with the closest
-            available volunteer and show live status updates.
+            available safewalker and show live status updates.
           </Text>
 
           <View style={{ gap: 10, marginTop: 10 }}>
@@ -208,13 +208,13 @@ export default function StudentHomeScreen({ navigation }: Props) {
                   </View>
                 ) : null}
 
-                {activeRequest.volunteerCode ? (
+                {activeRequest.safewalkerCode ? (
                   <View style={{ gap: 2 }}>
                     <Text style={{ color: COLORS.muted, fontSize: 12 }}>
-                      Volunteer shows
+                      SafeWalker shows
                     </Text>
                     <Text style={{ color: COLORS.text, fontWeight: "900" }}>
-                      {activeRequest.volunteerCode}
+                      {activeRequest.safewalkerCode}
                     </Text>
                   </View>
                 ) : null}

@@ -1,4 +1,4 @@
-export type Role = "STUDENT" | "VOLUNTEER";
+export type Role = "STUDENT" | "SAFEWALKER";
 
 export type User = {
   id: string;
@@ -34,13 +34,13 @@ export type StudentRequestStatusResponse = {
   requestId: string;
   status: StudentRequestStatus;
   etaSeconds: number | null;
-  volunteerLive: { lat: number; lng: number } | null;
+  safewalkerLive: { lat: number; lng: number } | null;
   studentCode?: string;
-  volunteerCode?: string;
-  volunteerHeadingDegrees?: number | null;
+  safewalkerCode?: string;
+  safewalkerHeadingDegrees?: number | null;
 };
 
-export type VolunteerRequestListItem = {
+export type SafewalkerRequestListItem = {
   requestId: string;
   studentName: string;
   pickupLabel: string;
@@ -48,7 +48,7 @@ export type VolunteerRequestListItem = {
   createdAt: string;
 };
 
-export type VolunteerRequestDetail = {
+export type SafewalkerRequestDetail = {
   requestId: string;
   studentName: string;
   pickup: { label: string; lat: number | null; lng: number | null };
@@ -57,5 +57,5 @@ export type VolunteerRequestDetail = {
   etaTripSeconds: number | null;
   status: "OPEN" | "ACCEPTED" | "COMPLETED";
   studentCode?: string;
-  volunteerCode?: string;
+  safewalkerCode?: string;
 };

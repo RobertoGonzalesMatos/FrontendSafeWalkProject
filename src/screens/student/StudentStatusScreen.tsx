@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Pressable, Text, View, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -6,7 +6,7 @@ import { StudentStackParamList } from "../../navigation/StudentStack";
 import { API } from "../../api/endpoints";
 import { usePolling } from "../../hooks/usePolling";
 import type { StudentRequestStatusResponse } from "../../api/types";
-import VolunteerLiveMap from "../../components/VolunteerLiveMap";
+import SafewalkerLiveMap from "../../components/SafewalkerLiveMap";
 import { useAuth } from "../../auth/AuthContext";
 
 type Props = NativeStackScreenProps<StudentStackParamList, "StudentStatus">;
@@ -28,7 +28,7 @@ const COLORS = {
 function Pill({ status }: { status: string }) {
   const meta =
     status === "ASSIGNED"
-      ? { label: "VOLUNTEER ON WAY", bg: "rgba(34,197,94,0.15)", fg: COLORS.green }
+      ? { label: "SAFEWALKER ON WAY", bg: "rgba(34,197,94,0.15)", fg: COLORS.green }
       : status === "WALKING"
         ? { label: "SAFEWALK IN PROGRESS", bg: "rgba(34,197,94,0.3)", fg: COLORS.green }
         : status === "MATCHING"
@@ -115,7 +115,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
   const [data, setData] = useState<StudentRequestStatusResponse | null>(null);
   const { setActiveRequest } = useAuth();
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
       const res = await API.getStudentRequestStatus(requestId);
       setData(res);
@@ -135,7 +135,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
     } catch (e) {
       console.error("Refresh error", e);
     }
-  }
+  }, [requestId, setActiveRequest]);
 
   usePolling(refresh, 2000, true);
 
@@ -199,20 +199,20 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
                 Matching…
               </Text>
               <Text style={{ color: COLORS.muted, lineHeight: 20 }}>
-                Finding the closest volunteer.
+                Finding the closest safewalker.
               </Text>
             </>
           )}
 
-          {status === "ASSIGNED" && data?.volunteerLive && (
+          {status === "ASSIGNED" && data?.safewalkerLive && (
             <>
               <Text style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}>
-                Volunteer Accepted ✅
+                SafeWalker Accepted ✅
               </Text>
 
               <View style={{ alignItems: "center", marginVertical: 10 }}>
                 <Text style={{ color: COLORS.muted, fontSize: 12, textTransform: "uppercase" }}>
-                  Show this code to volunteer
+                  Show this code to safewalker
                 </Text>
                 <Text style={{ color: COLORS.yellow, fontSize: 48, fontWeight: "900", letterSpacing: 4 }}>
                   {data.studentCode || "----"}
@@ -226,12 +226,12 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
 
               {/* Map snippet */}
               <View style={{ height: 150, borderRadius: 12, overflow: 'hidden', marginTop: 10 }}>
-                <VolunteerLiveMap
-                  volunteer={{
-                    lat: data.volunteerLive.lat,
-                    lng: data.volunteerLive.lng,
+                <SafewalkerLiveMap
+                  safewalker={{
+                    lat: data.safewalkerLive.lat,
+                    lng: data.safewalkerLive.lng,
                   }}
-                  headingDegrees={data.volunteerHeadingDegrees ?? 0}
+                  headingDegrees={data.safewalkerHeadingDegrees ?? 0}
                   pickup={null}
                 />
               </View>
@@ -258,7 +258,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
           {status === "NO_AVAILABLE" && (
             <>
               <Text style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}>
-                No volunteers right now
+                No safewalkers right now
               </Text>
               <Text style={{ color: COLORS.muted }}>
                 Please try again in a few minutes.

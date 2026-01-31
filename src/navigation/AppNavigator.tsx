@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "../auth/AuthContext";
 import LoginScreen from "../screens/auth/LoginScreen";
 import StudentStack from "./StudentStack";
-import VolunteerStack from "./VolunteerStack";
+import SafewalkerStack from "./SafewalkerStack";
 
 // Theme colors (Night Safety + Safewalk Yellow)
 const COLORS = {
@@ -62,10 +62,10 @@ export default function AppNavigator() {
           />
         ) : (
           <Root.Screen
-            name="Volunteer"
-            component={VolunteerStack}
+            name="SafeWalker"
+            component={SafewalkerStack}
             options={{
-              headerShown: false, // VolunteerStack controls headers
+              headerShown: false, // SafewalkerStack controls headers
             }}
           />
         )}

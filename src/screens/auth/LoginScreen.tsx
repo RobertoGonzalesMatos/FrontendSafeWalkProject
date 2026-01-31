@@ -189,9 +189,9 @@ export default function LoginScreen() {
           >
             Tip: use access code{" "}
             <Text style={{ color: COLORS.yellow, fontWeight: "800" }}>
-              volunteer
+              safewalker
             </Text>{" "}
-            to enter Volunteer mode
+            to enter SafeWalker mode
           </Text>
         </View>
 

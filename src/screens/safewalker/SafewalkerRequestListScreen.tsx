@@ -3,11 +3,11 @@ import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
-import { VolunteerStackParamList } from "../../navigation/VolunteerStack";
+import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 import { API } from "../../api/endpoints";
-import { VolunteerRequestListItem } from "../../api/types";
+import { SafewalkerRequestListItem } from "../../api/types";
 
-type Props = NativeStackScreenProps<VolunteerStackParamList, "VolunteerList">;
+type Props = NativeStackScreenProps<SafewalkerStackParamList, "SafewalkerList">;
 
 const COLORS = {
   bg: "#0F172A",
@@ -18,14 +18,14 @@ const COLORS = {
   yellow: "#F4C430",
 };
 
-export default function VolunteerRequestListScreen({ navigation }: Props) {
-  const [requests, setRequests] = useState<VolunteerRequestListItem[]>([]);
+export default function SafewalkerRequestListScreen({ navigation }: Props) {
+  const [requests, setRequests] = useState<SafewalkerRequestListItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchRequests = async () => {
     try {
       setRefreshing(true);
-      const data = await API.listVolunteerRequests();
+      const data = await API.listSafewalkerRequests();
       setRequests(data);
     } catch (e) {
       console.error(e);
@@ -56,7 +56,7 @@ export default function VolunteerRequestListScreen({ navigation }: Props) {
         }
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => navigation.navigate("VolunteerDetail", { requestId: item.requestId })}
+            onPress={() => navigation.navigate("SafewalkerDetail", { requestId: item.requestId })}
             style={({ pressed }) => ({
               backgroundColor: COLORS.card,
               padding: 16,
