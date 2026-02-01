@@ -6,7 +6,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { usePreventRemove } from "@react-navigation/native";
 import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 import { API } from "../../api/endpoints";
-import { StudentRequestStatusResponse } from "../../api/types";
+import * as Location from "expo-location";
 
 type Props = NativeStackScreenProps<SafewalkerStackParamList, "SafewalkerActiveWalk">;
 
@@ -24,40 +24,89 @@ const COLORS = {
 
 export default function SafewalkerActiveWalkScreen({ route, navigation }: Props) {
   const { requestId, studentLat, studentLng } = route.params;
-  const [status, setStatus] = useState<StudentRequestStatusResponse | null>(null);
+
+  // Local state to track the walk status
+  const [activeState, setActiveState] = useState<{
+    status: "ASSIGNED" | "WALKING" | "COMPLETED";
+    studentLocation: { lat: number; lng: number } | null;
+  } | null>(null);
+
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
 
   // Poll for status
   useEffect(() => {
     let active = true;
+
     async function fetchStatus() {
       try {
-        const data = await API.getStudentRequestStatus(requestId);
+        // Get current location for heartbeat
+        let lat = 0;
+        let lng = 0;
+        try {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          lat = loc.coords.latitude;
+          lng = loc.coords.longitude;
+        } catch { }
+
+        // Poll as Safewalker (isStudent=false)
+        const res = await API.statusUpdate({
+          sid: requestId, // user.id
+          isStudent: false,
+          isActiveRequest: true,
+          lat,
+          lng
+        });
+
         if (!active) return;
-        setStatus(data);
-        if (data.status === "COMPLETED") {
-          Alert.alert("Success", "SafeWalk Completed!");
+
+        // If not assigned anymore, it implies cancellation or completion
+        if (!res.is_assigned) {
+          Alert.alert("Info", "The request has ended.");
           navigation.popToTop();
+          return;
         }
+
+        const status = res.matching_status ? "WALKING" : "ASSIGNED";
+
+        setActiveState({
+          status,
+          studentLocation: (res.student_lat && res.student_lng) ? { lat: res.student_lat, lng: res.student_lng } : null
+        });
+
       } catch (e) {
         console.error("Polling error", e);
       }
     }
+
     fetchStatus();
     const interval = setInterval(fetchStatus, 3000);
     return () => { active = false; clearInterval(interval); };
   }, [requestId, navigation]);
 
   // Prevent back navigation
-  const shouldPreventRemove = status?.status === "ASSIGNED" || status?.status === "WALKING";
+  const shouldPreventRemove = activeState?.status === "ASSIGNED" || activeState?.status === "WALKING";
   usePreventRemove(shouldPreventRemove, ({ data }) => {
-    // ... same handler ...
-    Alert.alert("Cannot Leave", "You must finish or decline the request.");
+    const isWalking = activeState?.status === "WALKING";
+    Alert.alert(
+      isWalking ? "Cannot Leave Walk" : "Decline Request?",
+      isWalking
+        ? "You must complete the SafeWalk before leaving. Only the student can mark it as complete."
+        : "Going back will return this request to the pool for other safewalkers.",
+      isWalking
+        ? [{ text: "OK", style: "cancel" }]
+        : [
+          { text: "Stay", style: "cancel" },
+          {
+            text: "Decline & Go Back", style: "destructive", onPress: async () => {
+              try { await API.declineSafewalkerRequest(requestId); navigation.dispatch(data.action); } catch { }
+            }
+          }
+        ]
+    );
   });
 
   const handleVerify = async () => {
-    // ... same verify logic ...
     if (code.length < 4) return;
     setVerifying(true);
     try {
@@ -74,7 +123,16 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
     } catch (e) { console.warn(e); }
   };
 
-  const isWalking = status?.status === "WALKING";
+  if (!activeState) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator color={COLORS.yellow} />
+        <Text style={{ color: COLORS.muted, marginTop: 10 }}>Loading mission...</Text>
+      </View>
+    );
+  }
+
+  const isWalking = activeState.status === "WALKING";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
@@ -91,11 +149,13 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
             showsUserLocation
           >
             {/* Student Marker */}
-            <Marker
-              coordinate={{ latitude: studentLat, longitude: studentLng }}
-              title="Student"
-              pinColor="cyan"
-            />
+            {activeState.studentLocation && (
+              <Marker
+                coordinate={{ latitude: activeState.studentLocation.lat, longitude: activeState.studentLocation.lng }}
+                title="Student"
+                pinColor="cyan"
+              />
+            )}
           </MapView>
 
           {/* Overlay Card */}
@@ -111,7 +171,7 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
           }}>
 
             <Text style={{ color: COLORS.yellow, fontWeight: "bold", marginBottom: 8 }}>
-              STATUS: {status.status}
+              STATUS: {activeState.status}
             </Text>
 
             {!isWalking ? (

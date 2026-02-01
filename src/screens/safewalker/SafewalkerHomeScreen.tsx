@@ -49,11 +49,10 @@ export default function SafewalkerHomeScreen({ navigation }: Props) {
 
         if (res.success && res.is_assigned) {
           clearInterval(intervalId);
-          navigation.replace("SafewalkerRequestDetail", {
+          navigation.replace("SafewalkerActiveWalk", {
             requestId: user.id,
-            studentLabel: res.student_label,
-            lat: res.student_lat ?? 0,
-            lng: res.student_lng ?? 0
+            studentLat: res.student_lat ?? 0,
+            studentLng: res.student_lng ?? 0
           });
         }
       } catch (e) {
