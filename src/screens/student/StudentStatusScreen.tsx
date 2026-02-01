@@ -238,7 +238,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
             </>
           )}
 
-          {status === "ASSIGNED" && data?.safewalkerLive && (
+          {status === "ASSIGNED" && (
             <>
               <Text
                 style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}
@@ -264,7 +264,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
                     letterSpacing: 4,
                   }}
                 >
-                  {data.studentCode || code || "----"}
+                  {data?.studentCode || code || "----"}
                 </Text>
               </View>
 
@@ -280,23 +280,25 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
                 </Text>
               </View>
 
-              <View
-                style={{
-                  height: 150,
-                  borderRadius: 12,
-                  overflow: "hidden",
-                  marginTop: 10,
-                }}
-              >
-                <SafewalkerLiveMap
-                  safewalker={{
-                    lat: data.safewalkerLive.lat,
-                    lng: data.safewalkerLive.lng,
+              {data?.safewalkerLive && (
+                <View
+                  style={{
+                    height: 150,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    marginTop: 10,
                   }}
-                  headingDegrees={data.safewalkerHeadingDegrees ?? 0}
-                  pickup={null}
-                />
-              </View>
+                >
+                  <SafewalkerLiveMap
+                    safewalker={{
+                      lat: data.safewalkerLive.lat,
+                      lng: data.safewalkerLive.lng,
+                    }}
+                    headingDegrees={data.safewalkerHeadingDegrees ?? 0}
+                    pickup={null}
+                  />
+                </View>
+              )}
             </>
           )}
 
