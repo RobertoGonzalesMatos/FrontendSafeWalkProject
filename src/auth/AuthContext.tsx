@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState, useRef } from "react";
+import { Linking } from "react-native";
 import type { User } from "../api/types";
 import { setAuthToken } from "../api/client";
 import { API, registerSafewalker, getDeviceInfoForRegistration } from "../api/endpoints";
@@ -17,7 +18,7 @@ type AuthContextValue = {
   token: string | null;
   login: (token: string, user: User) => void;
   signInWithGoogle: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 
   activeRequest: ActiveRequestSummary | null;
   setActiveRequest: (r: ActiveRequestSummary | null) => void;
@@ -30,13 +31,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [activeRequest, setActiveRequest] =
     useState<ActiveRequestSummary | null>(null);
 
+  // Track if user just logged out to prevent auto-re-authentication
+  const justLoggedOutRef = useRef(false);
+
   /**
    * Helper to fetch current session & user attributes, then update state.
    * Returns true if successfully authenticated, false otherwise.
    */
   async function syncUserFromSession(): Promise<boolean> {
+    // Skip if user just logged out
+    if (justLoggedOutRef.current) {
+      console.log("[AuthContext] Skipping sync - user just logged out");
+      return false;
+    }
+
     try {
-      const { getCurrentUser, fetchAuthSession, fetchUserAttributes } =
+      const { getCurrentUser, fetchAuthSession, fetchUserAttributes, signOut } =
         await import("aws-amplify/auth");
 
       const currentUser = await getCurrentUser();
@@ -59,11 +69,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!email && attributes.email) {
             email = attributes.email;
           }
-        } catch (err) {
+        } catch (err: any) {
           console.log("[AuthContext] Failed to fetch attributes:", err);
+
+          // If token is revoked, sign out and return false
+          if (err?.name === "NotAuthorizedException" ||
+            err?.message?.includes("revoked") ||
+            err?.message?.includes("expired")) {
+            console.log("[AuthContext] Token revoked/expired, signing out...");
+            try {
+              await signOut({ global: false });
+            } catch (_) { }
+            return false;
+          }
         }
 
-        if (!email) email = "unknown";
+        // Don't proceed with unknown email - this indicates invalid session
+        if (!email || email === "unknown") {
+          console.log("[AuthContext] No valid email found, session invalid");
+          try {
+            await signOut({ global: false });
+          } catch (_) { }
+          return false;
+        }
 
         // 1. Role Logic
         const role = email === "henrywang3510@gmail.com" ? "SAFEWALKER" : "STUDENT";
@@ -131,6 +159,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signInWithGoogle() {
+    // Reset logout flag since user explicitly wants to sign in
+    justLoggedOutRef.current = false;
+
     try {
       const { signInWithRedirect, signOut } = await import("aws-amplify/auth");
       try {
@@ -146,14 +177,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           );
           const success = await syncUserFromSession();
           if (!success) {
-            // State is messed up (Amplify says yes, but we can't get session). Force signout and retry.
+            // State is messed up (Amplify says yes, but we can't get session). Force signout.
             console.log(
-              "[AuthContext] Stale session detected. Forcing signout -> retry."
+              "[AuthContext] Stale session detected. Forcing signout..."
             );
             try {
               await signOut({ global: false });
             } catch (_) { }
-            await signInWithRedirect({ provider: "Google" });
+            // Don't auto-redirect here - let user click login again
+            console.log("[AuthContext] Signed out stale session. User can try again.");
           }
         } else {
           throw err;
@@ -168,6 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check for existing session on mount
   React.useEffect(() => {
     let hubRemove: (() => void) | undefined;
+    let linkingSubscription: { remove: () => void } | undefined;
     let isMounted = true;
 
     const listener = (data: any) => {
@@ -176,16 +209,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data.payload.event === "signedIn"
       ) {
         console.log("[AuthContext] Hub detected signIn/signedIn");
-        syncUserFromSession();
+        // Only sync if not coming from a logout
+        if (!justLoggedOutRef.current) {
+          syncUserFromSession();
+        } else {
+          console.log("[AuthContext] Ignoring signIn event - user just logged out");
+        }
       }
       if (data.payload.event === "signOut") {
-        // Optional: clear state on remote signout if desired
-        // setToken(null); setUser(null); ...
+        console.log("[AuthContext] Hub detected signOut");
+        // Clear state on signout
+        setToken(null);
+        setUser(null);
+        setActiveRequest(null);
+        setAuthToken(null);
       }
     };
 
     async function setup() {
-      await syncUserFromSession();
+      // Check if we're coming from a signedout redirect
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl?.includes("signedout")) {
+        console.log("[AuthContext] Detected signedout redirect, skipping auto-sync");
+        justLoggedOutRef.current = true;
+        // Reset the flag after a short delay so future logins work
+        setTimeout(() => {
+          justLoggedOutRef.current = false;
+        }, 2000);
+        return; // Don't sync session on signedout redirect
+      }
+
+      // Only sync if not just logged out
+      if (!justLoggedOutRef.current) {
+        await syncUserFromSession();
+      }
       if (!isMounted) return;
 
       const { Hub } = await import("aws-amplify/utils");
@@ -193,6 +250,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log("[AuthContext] Setting up Hub listener");
       hubRemove = Hub.listen("auth", listener);
+
+      // Listen for deep link events (for logout redirect)
+      linkingSubscription = Linking.addEventListener("url", (event) => {
+        if (event.url?.includes("signedout")) {
+          console.log("[AuthContext] Received signedout deep link");
+          justLoggedOutRef.current = true;
+          setToken(null);
+          setUser(null);
+          setActiveRequest(null);
+          setAuthToken(null);
+          // Reset after delay
+          setTimeout(() => {
+            justLoggedOutRef.current = false;
+          }, 2000);
+        }
+      });
     }
 
     setup();
@@ -200,6 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
       hubRemove?.();
+      linkingSubscription?.remove();
     };
   }, []);
 
@@ -213,7 +287,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthToken(t);
       },
       signInWithGoogle,
-      logout: () => {
+      logout: async () => {
+        // Set flag to prevent auto-re-authentication during signout redirect
+        justLoggedOutRef.current = true;
+
         // Clear local state
         setToken(null);
         setUser(null);
@@ -225,9 +302,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           API.deregisterSafewalker(user.id);
         }
 
-        // Explicitly sign out from Amplify/Google to force re-login next time
+        try {
+          // Clear Amplify's stored OAuth/auth state from AsyncStorage
+          // This prevents Amplify from trying to resume pending OAuth flows
+          const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+          const allKeys = await AsyncStorage.getAllKeys();
+          const authKeys = allKeys.filter(key =>
+            key.includes("CognitoIdentityServiceProvider") ||
+            key.includes("amplify") ||
+            key.includes("oauth") ||
+            key.includes("auth")
+          );
+          if (authKeys.length > 0) {
+            await AsyncStorage.multiRemove(authKeys);
+            console.log("[Auth] Cleared stored auth keys:", authKeys);
+          }
+        } catch (e) {
+          console.log("[Auth] Failed to clear stored auth state:", e);
+        }
+
+        // Use local signout only (global: false) to avoid Cognito hosted UI redirect
+        // which can trigger OAuth callback handling and auto-re-authentication
         import("aws-amplify/auth").then(({ signOut }) => {
-          signOut({ global: true }).catch(err => console.log("[Auth] SignOut error", err));
+          signOut({ global: false }).catch(err => console.log("[Auth] SignOut error", err));
         });
       },
 

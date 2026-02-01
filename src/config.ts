@@ -1,3 +1,4 @@
 
 // Use 10.0.2.2 for Android Emulator, localhost for iOS Simulator
-export const BACKEND_BASE_URL = "http://10.37.104.219:8090"; 
+// For AWS server: http://54.208.236.197:8090
+export const BACKEND_BASE_URL = "http://54.208.236.197:8090"; 
