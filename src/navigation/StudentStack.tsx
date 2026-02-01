@@ -4,14 +4,13 @@ import StudentHomeScreen from "../screens/student/StudentHomeScreen";
 import StudentRequestScreen from "../screens/student/StudentRequestScreen";
 import StudentStatusScreen from "../screens/student/StudentStatusScreen";
 
-
 export type StudentStackParamList = {
   StudentHome: undefined;
   StudentRequest: undefined;
   StudentStatus: { requestId: string };
 };
 
-const Stack = createNativeStackNavigator<StudentStackParamList>();
+const Stack = createNativeStackNavigator();
 
 const COLORS = {
   header: "#0B1C2D",

@@ -7,7 +7,12 @@ import type {
   StudentRequestStatusResponse,
   SafewalkerRequestDetail,
   SafewalkerRequestListItem,
+  StatusUpdateResponse,
 } from "./types";
+import * as Location from "expo-location";
+import * as Network from "expo-network";
+import { startStatusHeartbeat } from "./statusHeartbeat";
+
 const USE_MOCK_AUTH = true;
 
 type MockRequest = {
@@ -19,7 +24,61 @@ type MockRequest = {
 };
 
 const mockRequests = new Map<string, MockRequest>();
+type RegisterSafewalkerParams = {
+  name: string;
+  sid: string;
+  listening_addr: string;
+  label: string;
+  lat: number;
+  long: number;
+};
 
+async function registerSafewalker(params: RegisterSafewalkerParams) {
+  const qp = new URLSearchParams({
+    name: params.name,
+    sid: params.sid,
+    listening_addr: params.listening_addr,
+    label: params.label,
+    lat: String(params.lat),
+    long: String(params.long),
+  });
+
+  const res = await fetch(
+    `http://localhost:8090/register-safewalker?${qp.toString()}`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`register-safewalker failed: ${res.status} ${text}`);
+  }
+}
+async function getDeviceInfoForRegistration() {
+  // 1) Location permission + coords
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== "granted") {
+    throw new Error("Location permission not granted");
+  }
+
+  const loc = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+
+  const lat = loc.coords.latitude;
+  const long = loc.coords.longitude;
+
+  // 2) LAN IP (Wi-Fi). This is the one your backend can usually reach.
+  const ip = await Network.getIpAddressAsync();
+
+  // If user is on cellular/VPN, IP might not be reachable.
+  if (!ip || ip === "0.0.0.0") {
+    throw new Error("Could not determine device IP");
+  }
+
+  return { ip, lat, long };
+}
 // Helper to generate a 4-digit code
 const generateCode = () => Math.floor(1000 + Math.random() * 9000).toString();
 
@@ -45,19 +104,12 @@ if (USE_MOCK_AUTH) {
 export const API = {
   login: async (email: string, code: string) => {
     if (USE_MOCK_AUTH) {
-      // Super simple role rule for hackathon:
-      // - code "safewalker" => safewalker
-      // - otherwise => student
       const role: Role =
         code.toLowerCase() === "safewalker" ? "SAFEWALKER" : "STUDENT";
 
-      // Optional: allow "v" or "s"
-      // const role = code.toLowerCase().startsWith("v") ? "SAFEWALKER" : "STUDENT";
-
-      // Simulate network delay
       await new Promise((r) => setTimeout(r, 400));
 
-      return {
+      const resp = {
         token: "mock-token",
         user: {
           id: `mock-${role.toLowerCase()}-${email || "user"}`,
@@ -66,13 +118,60 @@ export const API = {
           email: email || "mock@brown.edu",
         },
       };
+
+      if (resp.user.role === "SAFEWALKER") {
+        const { ip, lat, long } = await getDeviceInfoForRegistration();
+
+        await registerSafewalker({
+          name: resp.user.name,
+          sid: resp.user.id,
+          listening_addr: `${ip}:2030`,
+          label: "",
+          lat,
+          long,
+        });
+      }
+
+      // ✅ Start heartbeat for BOTH roles
+      await startStatusHeartbeat({
+        sid: resp.user.id,
+        isStudent: resp.user.role === "STUDENT",
+        getIsActiveRequest: () => resp.user.role === "SAFEWALKER", // default: safewalker active, student not active until they request
+        intervalMs: 5000,
+        label: "",
+      });
+
+      return resp;
     }
 
-    // Real backend call (later)
-    return apiFetch<LoginResponse>("/auth/login", {
+    const resp = await apiFetch<LoginResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, code }),
     });
+
+    if (resp.user.role === "SAFEWALKER") {
+      const { ip, lat, long } = await getDeviceInfoForRegistration();
+
+      await registerSafewalker({
+        name: resp.user.name,
+        sid: resp.user.id,
+        listening_addr: `${ip}:2030`,
+        label: "",
+        lat,
+        long,
+      });
+    }
+
+    // ✅ Start heartbeat for BOTH roles
+    await startStatusHeartbeat({
+      sid: resp.user.id,
+      isStudent: resp.user.role === "STUDENT",
+      getIsActiveRequest: () => resp.user.role === "SAFEWALKER",
+      intervalMs: 5000,
+      label: "",
+    });
+
+    return resp;
   },
 
   // Student
@@ -82,7 +181,6 @@ export const API = {
     if (USE_MOCK_AUTH) {
       const requestId = `req_${Math.random().toString(36).slice(2, 8)}`;
 
-      // Initial state
       mockRequests.set(requestId, {
         requestId,
         status: "MATCHING",
@@ -90,32 +188,53 @@ export const API = {
         etaSeconds: null,
       });
 
-      // Simulate backend matching after delay
       setTimeout(() => {
         const req = mockRequests.get(requestId);
         if (!req || req.status !== "MATCHING") return;
 
-        // 70% chance a safewalker is found
         const found = Math.random() < 0.7;
-
         if (found) {
           req.status = "ASSIGNED";
-          req.etaSeconds = 60 * (3 + Math.floor(Math.random() * 5)); // 3–7 min
+          req.etaSeconds = 60 * (3 + Math.floor(Math.random() * 5));
         } else {
           req.status = "NO_AVAILABLE";
         }
-
         mockRequests.set(requestId, req);
-      }, 2500); // simulate backend work
+      }, 2500);
 
       return { requestId };
     }
 
-    // REAL BACKEND (later)
-    return apiFetch<StudentCreateRequestResponse>("/student/requests", {
-      method: "POST",
-      body: JSON.stringify(body),
+    const qp = new URLSearchParams({
+      plabel: body.pickup.label ?? "",
+      plat: String(body.pickup.lat),
+      plng: String(body.pickup.lng),
+      dlabel: body.destination.label ?? "",
+      dlat: String(body.destination.lat),
+      dlng: String(body.destination.lng),
     });
+
+    const res = await fetch(
+      `http://localhost:8090/request-safewalk?${qp.toString()}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`request-safewalk failed: ${res.status} ${text}`);
+    }
+
+    const data = await res.json();
+
+    return {
+      requestId:
+        data.requestId ?? `req_${Math.random().toString(36).slice(2, 8)}`,
+    };
   },
 
   getStudentRequestStatus: async (
@@ -140,12 +259,11 @@ export const API = {
         safewalkerLive:
           req.status === "ASSIGNED" || req.status === "WALKING"
             ? {
-              // Fake live position (jittered)
-              lat: 41.8268 + Math.random() * 0.0005,
-              lng: -71.4025 + Math.random() * 0.0005,
-            }
+                // Fake live position (jittered)
+                lat: 41.8268 + Math.random() * 0.0005,
+                lng: -71.4025 + Math.random() * 0.0005,
+              }
             : null,
-        // Optional safety codes
         studentCode:
           req.status === "ASSIGNED" || req.status === "WALKING"
             ? "1234" // Fixed code for demo simplicity, or use req.code if we stored it
@@ -170,9 +288,12 @@ export const API = {
       return { ok: true };
     }
 
-    return apiFetch<{ ok: true }>(`/student/requests/${requestId}/cancel`, {
-      method: "POST",
-    });
+    return apiFetch<{ ok: true }>(
+      `/cancel-safewalk?sid=${encodeURIComponent(requestId)}&isStudent=${true}`,
+      {
+        method: "POST",
+      }
+    );
   },
 
   // SafeWalker
@@ -187,11 +308,13 @@ export const API = {
             studentName: "Student " + req.requestId.slice(-3),
             pickupLabel: "Main Green", // Mock data
             destinationLabel: "SciLi", // Mock data
-            createdAt: new Date(req.createdAt).toISOString(),
+            createdAt: new Date(req.createdAt).getTime(),
           });
         }
       }
-      return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return list.sort((a, b) =>
+        b.createdAt.toString().localeCompare(a.createdAt.toString())
+      );
     }
     return apiFetch<SafewalkerRequestListItem[]>("/safewalker/requests");
   },
@@ -206,13 +329,17 @@ export const API = {
         requestId: req.requestId,
         studentName: "Student " + req.requestId.slice(-3),
         pickup: { label: "Main Green", lat: 41.8268, lng: -71.4025 },
-        destination: { label: "SciLi", lat: 41.8270, lng: -71.4000 },
+        destination: { label: "SciLi", lat: 41.827, lng: -71.4 },
         etaToStudentSeconds: 300,
         etaTripSeconds: 600,
-        status: (req.status === "MATCHING" ? "OPEN" : "ACCEPTED") as "OPEN" | "ACCEPTED",
+        status: (req.status === "MATCHING" ? "OPEN" : "ACCEPTED") as
+          | "OPEN"
+          | "ACCEPTED",
       };
     }
-    return apiFetch<SafewalkerRequestDetail>(`/safewalker/requests/${requestId}`);
+    return apiFetch<SafewalkerRequestDetail>(
+      `/safewalker/requests/${requestId}`
+    );
   },
 
   acceptSafewalkerRequest: async (requestId: string) => {
@@ -284,9 +411,39 @@ export const API = {
     });
   },
 
+  deregisterSafewalker: async (sid: string) => {
+    return apiFetch<{ ok: true }>(
+      `/deregister-safewalker?sid=${encodeURIComponent(sid)}`,
+      {
+        method: "POST",
+      }
+    );
+  },
+
   // SafeWalker marks complete (optional, if we want dual confirmation)
   completeSafewalkerRequest: async (requestId: string) => {
     // reuse same logic or just error if only student can do it
     return API.completeStudentRequest(requestId);
+  },
+  statusUpdate: async (params: {
+    sid: string;
+    isStudent: boolean;
+    isActiveRequest: boolean;
+    label?: string; // blank ok
+    lat: number;
+    lng: number;
+  }) => {
+    const qp = new URLSearchParams({
+      sid: params.sid, // encodeURIComponent happens in URLSearchParams
+      isStudent: String(params.isStudent),
+      isActiveRequest: String(params.isActiveRequest),
+      label: params.label ?? "",
+      lat: String(params.lat),
+      lng: String(params.lng),
+    });
+
+    return apiFetch<StatusUpdateResponse>(`/status-update?${qp.toString()}`, {
+      method: "POST",
+    });
   },
 };

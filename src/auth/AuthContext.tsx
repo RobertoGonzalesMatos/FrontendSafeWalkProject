@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import type { User } from "../api/types";
 import { setAuthToken } from "../api/client";
+import { API } from "../api/endpoints";
+import { stopStatusHeartbeat } from "../api/statusHeartbeat";
 
 type ActiveRequestSummary = {
   requestId: string;
-  status: "MATCHING" | "ASSIGNED";
+  status: "MATCHING" | "ASSIGNED" | "WALKING";
   etaSeconds?: number | null;
   studentCode?: string;
   safewalkerCode?: string;
@@ -34,7 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   async function syncUserFromSession(): Promise<boolean> {
     try {
-      const { getCurrentUser, fetchAuthSession, fetchUserAttributes } = await import("aws-amplify/auth");
+      const { getCurrentUser, fetchAuthSession, fetchUserAttributes } =
+        await import("aws-amplify/auth");
 
       const currentUser = await getCurrentUser();
       const session = await fetchAuthSession();
@@ -45,7 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const attributes = await fetchUserAttributes();
           // Try common name fields, fallback to email username, then "User"
-          displayName = attributes.name || attributes.given_name || attributes.email?.split('@')[0] || "User";
+          displayName =
+            attributes.name ||
+            attributes.given_name ||
+            attributes.email?.split("@")[0] ||
+            "User";
         } catch (err) {
           console.log("[AuthContext] Failed to fetch attributes:", err);
         }
@@ -75,15 +82,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err: any) {
         // Handle "Already signed in" by syncing session
         if (
-          err.name === 'UserAlreadyAuthenticatedException' ||
-          err.message?.includes('already signed in')
+          err.name === "UserAlreadyAuthenticatedException" ||
+          err.message?.includes("already signed in")
         ) {
-          console.log("[AuthContext] User already signed in. Syncing session...");
+          console.log(
+            "[AuthContext] User already signed in. Syncing session..."
+          );
           const success = await syncUserFromSession();
           if (!success) {
             // State is messed up (Amplify says yes, but we can't get session). Force signout and retry.
-            console.log("[AuthContext] Stale session detected. Forcing signout -> retry.");
-            try { await signOut({ global: false }); } catch (_) { }
+            console.log(
+              "[AuthContext] Stale session detected. Forcing signout -> retry."
+            );
+            try {
+              await signOut({ global: false });
+            } catch (_) {}
             await signInWithRedirect({ provider: "Google" });
           }
         } else {
@@ -102,11 +115,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     const listener = (data: any) => {
-      if (data.payload.event === 'signIn' || data.payload.event === 'signedIn') {
+      if (
+        data.payload.event === "signIn" ||
+        data.payload.event === "signedIn"
+      ) {
         console.log("[AuthContext] Hub detected signIn/signedIn");
         syncUserFromSession();
       }
-      if (data.payload.event === 'signOut') {
+      if (data.payload.event === "signOut") {
         // Optional: clear state on remote signout if desired
         // setToken(null); setUser(null); ...
       }
@@ -120,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isMounted) return;
 
       console.log("[AuthContext] Setting up Hub listener");
-      hubRemove = Hub.listen('auth', listener);
+      hubRemove = Hub.listen("auth", listener);
     }
 
     setup();
@@ -148,6 +164,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setActiveRequest(null);
         setAuthToken(null);
+        if (user?.role === "SAFEWALKER") {
+          stopStatusHeartbeat();
+          API.deregisterSafewalker(user.id);
+        }
       },
 
       activeRequest,

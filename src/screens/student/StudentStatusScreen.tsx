@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Pressable, Text, View, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -28,16 +28,24 @@ const COLORS = {
 function Pill({ status }: { status: string }) {
   const meta =
     status === "ASSIGNED"
-      ? { label: "SAFEWALKER ON WAY", bg: "rgba(34,197,94,0.15)", fg: COLORS.green }
+      ? {
+          label: "SAFEWALKER ON WAY",
+          bg: "rgba(34,197,94,0.15)",
+          fg: COLORS.green,
+        }
       : status === "WALKING"
-        ? { label: "SAFEWALK IN PROGRESS", bg: "rgba(34,197,94,0.3)", fg: COLORS.green }
-        : status === "MATCHING"
-          ? { label: "MATCHING", bg: "rgba(30,144,255,0.15)", fg: COLORS.blue }
-          : status === "NO_AVAILABLE"
-            ? { label: "NO AVAILABLE", bg: "rgba(245,158,11,0.18)", fg: COLORS.amber }
-            : status === "COMPLETED"
-              ? { label: "COMPLETED", bg: "rgba(34,197,94,0.15)", fg: COLORS.green }
-              : { label: "CANCELLED", bg: "rgba(148,163,184,0.15)", fg: COLORS.muted };
+      ? {
+          label: "SAFEWALK IN PROGRESS",
+          bg: "rgba(34,197,94,0.3)",
+          fg: COLORS.green,
+        }
+      : status === "MATCHING"
+      ? { label: "MATCHING", bg: "rgba(30,144,255,0.15)", fg: COLORS.blue }
+      : status === "NO_AVAILABLE"
+      ? { label: "NO AVAILABLE", bg: "rgba(245,158,11,0.18)", fg: COLORS.amber }
+      : status === "COMPLETED"
+      ? { label: "COMPLETED", bg: "rgba(34,197,94,0.15)", fg: COLORS.green }
+      : { label: "CANCELLED", bg: "rgba(148,163,184,0.15)", fg: COLORS.muted };
 
   return (
     <View
@@ -63,7 +71,7 @@ function PrimaryButton({
   onPress,
   disabled,
   color = COLORS.yellow,
-  textColor = "#0B1C2D"
+  textColor = "#0B1C2D",
 }: {
   title: string;
   onPress: () => void;
@@ -90,7 +98,13 @@ function PrimaryButton({
   );
 }
 
-function SecondaryButton({ title, onPress }: { title: string; onPress: () => void }) {
+function SecondaryButton({
+  title,
+  onPress,
+}: {
+  title: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -115,6 +129,15 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
   const [data, setData] = useState<StudentRequestStatusResponse | null>(null);
   const { setActiveRequest } = useAuth();
 
+  // ✅ Ensure heartbeat sees an active request immediately
+  useEffect(() => {
+    setActiveRequest({ requestId, status: "MATCHING" });
+    return () => {
+      // If user navigates away unexpectedly, clear it (optional)
+      // setActiveRequest(null);
+    };
+  }, [requestId, setActiveRequest]);
+
   const refresh = useCallback(async () => {
     try {
       const res = await API.getStudentRequestStatus(requestId);
@@ -123,7 +146,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
       if (res.status === "ASSIGNED" || res.status === "WALKING") {
         setActiveRequest({
           requestId,
-          status: "ASSIGNED", // Simplify global auth state
+          status: res.status, // keep real status
           etaSeconds: res.etaSeconds ?? null,
           studentCode: res.studentCode,
         });
@@ -140,34 +163,41 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
   usePolling(refresh, 2000, true);
 
   function cancel() {
-    Alert.alert("Cancel Safewalk request?", "You’ll lose your place in the queue.", [
-      { text: "Keep waiting", style: "cancel" },
-      {
-        text: "Cancel request",
-        style: "destructive",
-        onPress: async () => {
-          await API.cancelStudentRequest(requestId);
-          setActiveRequest(null);
-          navigation.popToTop();
+    Alert.alert(
+      "Cancel Safewalk request?",
+      "You’ll lose your place in the queue.",
+      [
+        { text: "Keep waiting", style: "cancel" },
+        {
+          text: "Cancel request",
+          style: "destructive",
+          onPress: async () => {
+            await API.cancelStudentRequest(requestId);
+            setActiveRequest(null);
+            navigation.popToTop();
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
   const handleComplete = async () => {
     Alert.alert("Complete SafeWalk?", "Confirm that you have arrived safely.", [
       { text: "Not yet", style: "cancel" },
       {
-        text: "Yes, I'm safe", onPress: async () => {
+        text: "Yes, I'm safe",
+        onPress: async () => {
           await API.completeStudentRequest(requestId);
+          setActiveRequest(null); // ✅ important
           navigation.popToTop();
-        }
-      }
-    ])
-  }
+        },
+      },
+    ]);
+  };
 
   const status = data?.status ?? "MATCHING";
-  const etaText = data?.etaSeconds != null ? `${Math.ceil(data.etaSeconds / 60)} min` : "—";
+  const etaText =
+    data?.etaSeconds != null ? `${Math.ceil(data.etaSeconds / 60)} min` : "—";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
@@ -178,7 +208,9 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
             Live Status
           </Text>
           <Pill status={status} />
-          <Text style={{ color: COLORS.muted, fontSize: 12 }}>ID: {requestId}</Text>
+          <Text style={{ color: COLORS.muted, fontSize: 12 }}>
+            ID: {requestId}
+          </Text>
         </View>
 
         {/* Status card */}
@@ -190,12 +222,14 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
             borderRadius: 18,
             padding: 16,
             gap: 12,
-            minHeight: 200
+            minHeight: 200,
           }}
         >
           {status === "MATCHING" && (
             <>
-              <Text style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}>
+              <Text
+                style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}
+              >
                 Matching…
               </Text>
               <Text style={{ color: COLORS.muted, lineHeight: 20 }}>
@@ -206,26 +240,54 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
 
           {status === "ASSIGNED" && data?.safewalkerLive && (
             <>
-              <Text style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}>
+              <Text
+                style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}
+              >
                 SafeWalker Accepted ✅
               </Text>
 
               <View style={{ alignItems: "center", marginVertical: 10 }}>
-                <Text style={{ color: COLORS.muted, fontSize: 12, textTransform: "uppercase" }}>
+                <Text
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                  }}
+                >
                   Show this code to safewalker
                 </Text>
-                <Text style={{ color: COLORS.yellow, fontSize: 48, fontWeight: "900", letterSpacing: 4 }}>
+                <Text
+                  style={{
+                    color: COLORS.yellow,
+                    fontSize: 48,
+                    fontWeight: "900",
+                    letterSpacing: 4,
+                  }}
+                >
                   {data.studentCode || "----"}
                 </Text>
               </View>
 
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
                 <Text style={{ color: COLORS.muted }}>ETA</Text>
-                <Text style={{ color: COLORS.text, fontWeight: "bold" }}>{etaText}</Text>
+                <Text style={{ color: COLORS.text, fontWeight: "bold" }}>
+                  {etaText}
+                </Text>
               </View>
 
-              {/* Map snippet */}
-              <View style={{ height: 150, borderRadius: 12, overflow: 'hidden', marginTop: 10 }}>
+              <View
+                style={{
+                  height: 150,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  marginTop: 10,
+                }}
+              >
                 <SafewalkerLiveMap
                   safewalker={{
                     lat: data.safewalkerLive.lat,
@@ -240,7 +302,9 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
 
           {status === "WALKING" && (
             <>
-              <Text style={{ color: COLORS.green, fontWeight: "900", fontSize: 22 }}>
+              <Text
+                style={{ color: COLORS.green, fontWeight: "900", fontSize: 22 }}
+              >
                 On the move 🚶
               </Text>
               <Text style={{ color: COLORS.text }}>
@@ -249,7 +313,13 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
               <View style={{ alignItems: "center", padding: 20 }}>
                 <Text style={{ fontSize: 60 }}>🛡️</Text>
               </View>
-              <Text style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center' }}>
+              <Text
+                style={{
+                  color: COLORS.muted,
+                  fontSize: 13,
+                  textAlign: "center",
+                }}
+              >
                 When you arrive, press the button below to complete the walk.
               </Text>
             </>
@@ -257,7 +327,9 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
 
           {status === "NO_AVAILABLE" && (
             <>
-              <Text style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}>
+              <Text
+                style={{ color: COLORS.text, fontWeight: "900", fontSize: 18 }}
+              >
                 No safewalkers right now
               </Text>
               <Text style={{ color: COLORS.muted }}>
@@ -267,7 +339,9 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
           )}
 
           {status === "COMPLETED" && (
-            <Text style={{ color: COLORS.green, fontWeight: "900", fontSize: 18 }}>
+            <Text
+              style={{ color: COLORS.green, fontWeight: "900", fontSize: 18 }}
+            >
               SafeWalk Completed!
             </Text>
           )}
@@ -283,7 +357,10 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
               textColor="#FFFFFF"
             />
           ) : status === "COMPLETED" || status === "CANCELLED" ? (
-            <PrimaryButton title="Back to Home" onPress={() => navigation.popToTop()} />
+            <PrimaryButton
+              title="Back to Home"
+              onPress={() => navigation.popToTop()}
+            />
           ) : (
             <SecondaryButton title="Cancel Request" onPress={cancel} />
           )}

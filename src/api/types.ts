@@ -45,7 +45,7 @@ export type SafewalkerRequestListItem = {
   studentName: string;
   pickupLabel: string;
   destinationLabel: string;
-  createdAt: string;
+  createdAt: number;
 };
 
 export type SafewalkerRequestDetail = {
@@ -58,4 +58,9 @@ export type SafewalkerRequestDetail = {
   status: "OPEN" | "ACCEPTED" | "COMPLETED";
   studentCode?: string;
   safewalkerCode?: string;
+};
+
+export type StatusUpdateResponse = {
+  success: boolean;
+  matching_status: boolean;
 };
