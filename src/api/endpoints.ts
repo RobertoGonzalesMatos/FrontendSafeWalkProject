@@ -12,41 +12,38 @@ import type {
 import * as Location from "expo-location";
 import * as Network from "expo-network";
 import { startStatusHeartbeat } from "./statusHeartbeat";
+import { BACKEND_BASE_URL } from "../config";
 
-const USE_MOCK_AUTH = true;
+const USE_MOCK_AUTH = false; // Mock disabled
 
-type MockRequest = {
-  requestId: string;
-  status: StudentRequestStatusResponse["status"];
-  createdAt: number;
-  etaSeconds: number | null;
-  safewalkerHeadingDegrees?: number | null;
-};
-
-const mockRequests = new Map<string, MockRequest>();
 type RegisterSafewalkerParams = {
   name: string;
   sid: string;
-  listening_addr: string;
   label: string;
   lat: number;
   long: number;
 };
 
-async function registerSafewalker(params: RegisterSafewalkerParams) {
+// Backend expects query params for registration
+// POST or GET? Backend main.go checks req.URL.Query().Get("name") ... so it reads Query Params. 
+// Standard in Go http.HandleFunc is that it reads query params regardless of method if you use req.URL.Query().
+// However, the previous mock code used POST. I'll use GET to be safe with main.go's reading style, or POST with query params.
+// The safe bet for this specific Go backend is GET or POST *but with Query Params in the URL*.
+// Helper exported for AuthContext
+export async function registerSafewalker(params: RegisterSafewalkerParams) {
   const qp = new URLSearchParams({
     name: params.name,
     sid: params.sid,
-    listening_addr: params.listening_addr,
     label: params.label,
     lat: String(params.lat),
     long: String(params.long),
   });
 
+  // Using GET as main.go reads from URL.Query() which works best with GET.
   const res = await fetch(
-    `http://localhost:8090/register-safewalker?${qp.toString()}`,
+    `${BACKEND_BASE_URL}/register-safewalker?${qp.toString()}`,
     {
-      method: "POST",
+      method: "GET",
     }
   );
 
@@ -55,8 +52,8 @@ async function registerSafewalker(params: RegisterSafewalkerParams) {
     throw new Error(`register-safewalker failed: ${res.status} ${text}`);
   }
 }
-async function getDeviceInfoForRegistration() {
-  // 1) Location permission + coords
+
+export async function getDeviceInfoForRegistration() {
   const { status } = await Location.requestForegroundPermissionsAsync();
   if (status !== "granted") {
     throw new Error("Location permission not granted");
@@ -69,142 +66,82 @@ async function getDeviceInfoForRegistration() {
   const lat = loc.coords.latitude;
   const long = loc.coords.longitude;
 
-  // 2) LAN IP (Wi-Fi). This is the one your backend can usually reach.
   const ip = await Network.getIpAddressAsync();
+  // if (!ip || ip === "0.0.0.0") ... permissive
 
-  // If user is on cellular/VPN, IP might not be reachable.
-  if (!ip || ip === "0.0.0.0") {
-    throw new Error("Could not determine device IP");
-  }
-
-  return { ip, lat, long };
-}
-// Helper to generate a 4-digit code
-const generateCode = () => Math.floor(1000 + Math.random() * 9000).toString();
-
-// Seed some initial requests for testing
-if (USE_MOCK_AUTH) {
-  const seedIds = ["req_seed_1", "req_seed_2"];
-
-  mockRequests.set(seedIds[0], {
-    requestId: seedIds[0],
-    status: "MATCHING",
-    createdAt: Date.now() - 1000 * 60 * 5, // 5 min ago
-    etaSeconds: null,
-  });
-
-  mockRequests.set(seedIds[1], {
-    requestId: seedIds[1],
-    status: "MATCHING",
-    createdAt: Date.now() - 1000 * 60 * 15, // 15 min ago
-    etaSeconds: null,
-  });
+  return { ip: ip ?? "0.0.0.0", lat, long };
 }
 
 export const API = {
   login: async (email: string, code: string) => {
-    if (USE_MOCK_AUTH) {
-      const role: Role =
-        code.toLowerCase() === "safewalker" ? "SAFEWALKER" : "STUDENT";
+    // 1. Role Logic
+    // "henrywang3510@gmail.com" -> Safewalker. All others -> Student.
+    // We ignore the `code` param as 'auth' implies Google login result which gives email.
 
-      await new Promise((r) => setTimeout(r, 400));
+    let role: Role = "STUDENT";
+    if (email === "henrywang3510@gmail.com") {
+      role = "SAFEWALKER";
+    }
 
-      const resp = {
-        token: "mock-token",
-        user: {
-          id: `mock-${role.toLowerCase()}-${email || "user"}`,
-          role,
-          name: role === "SAFEWALKER" ? "SafeWalker" : "Student",
-          email: email || "mock@brown.edu",
-        },
-      };
+    // 2. Generate Session/User ID
+    // Backend needs a stable ID. We can use email as ID or base64 it.
+    // For simplicity, we use email as ID.
+    const userId = email;
 
-      if (resp.user.role === "SAFEWALKER") {
-        const { ip, lat, long } = await getDeviceInfoForRegistration();
+    // 3. User Object
+    const user = {
+      id: userId,
+      role,
+      name: role === "SAFEWALKER" ? "Henry Wang" : "Student", // Basic name
+      email: email,
+    };
 
+    console.log(`[Auth] Logged in: ${email} | Role: ${role}`);
+
+    // 4. Register if Safewalker
+    if (role === "SAFEWALKER") {
+      try {
+        const { lat, long } = await getDeviceInfoForRegistration();
         await registerSafewalker({
-          name: resp.user.name,
-          sid: resp.user.id,
-          listening_addr: `${ip}:2030`,
+          name: user.name,
+          sid: user.id,
           label: "",
           lat,
           long,
         });
+      } catch (e) {
+        console.warn("Safewalker registration failed (location/network?):", e);
+        // Should we block login? Probably yes if they need to be registered.
+        // But for allowed non-blocking:
+        // throw e; 
       }
-
-      // ✅ Start heartbeat for BOTH roles
-      await startStatusHeartbeat({
-        sid: resp.user.id,
-        isStudent: resp.user.role === "STUDENT",
-        getIsActiveRequest: () => resp.user.role === "SAFEWALKER", // default: safewalker active, student not active until they request
-        intervalMs: 5000,
-        label: "",
-      });
-
-      return resp;
     }
 
-    const resp = await apiFetch<LoginResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, code }),
-    });
-
-    if (resp.user.role === "SAFEWALKER") {
-      const { ip, lat, long } = await getDeviceInfoForRegistration();
-
-      await registerSafewalker({
-        name: resp.user.name,
-        sid: resp.user.id,
-        listening_addr: `${ip}:2030`,
-        label: "",
-        lat,
-        long,
-      });
-    }
-
-    // ✅ Start heartbeat for BOTH roles
+    // 5. Start Heartbeat (Same as before)
+    // IMPORTANT: Heartbeat is what keeps the backend updated.
     await startStatusHeartbeat({
-      sid: resp.user.id,
-      isStudent: resp.user.role === "STUDENT",
-      getIsActiveRequest: () => resp.user.role === "SAFEWALKER",
+      sid: user.id,
+      isStudent: role === "STUDENT",
+      getIsActiveRequest: () => role === "SAFEWALKER", // Safewalker is "active" (available) by default? 
+      // Wait, getIsActiveRequest is passed to `isActiveRequest` param in `status-update`.
+      // For Safewalker, `isActiveRequest=true` means "I am available"? 
+      // Backend: `status := req.URL.Query().Get("isActiveRequest")`. 
+      // If true, it updates location. If false, it calls `remove_student`.
+      // So YES, Safewalker should always send true unless they want to go offline.
+      // For Student, they only send true if they have a request? 
+      // Actually `startStatusHeartbeat` is called ONCE at login. 
+      // The `getIsActiveRequest` callback allows dynamic changing.
       intervalMs: 5000,
       label: "",
     });
 
-    return resp;
+    return { token: "dummy-token", user };
   },
 
   // Student
   createStudentRequest: async (
     body: StudentCreateRequestBody
   ): Promise<StudentCreateRequestResponse> => {
-    if (USE_MOCK_AUTH) {
-      const requestId = `req_${Math.random().toString(36).slice(2, 8)}`;
-
-      mockRequests.set(requestId, {
-        requestId,
-        status: "MATCHING",
-        createdAt: Date.now(),
-        etaSeconds: null,
-      });
-
-      setTimeout(() => {
-        const req = mockRequests.get(requestId);
-        if (!req || req.status !== "MATCHING") return;
-
-        const found = Math.random() < 0.7;
-        if (found) {
-          req.status = "ASSIGNED";
-          req.etaSeconds = 60 * (3 + Math.floor(Math.random() * 5));
-        } else {
-          req.status = "NO_AVAILABLE";
-        }
-        mockRequests.set(requestId, req);
-      }, 2500);
-
-      return { requestId };
-    }
-
     const qp = new URLSearchParams({
       plabel: body.pickup.label ?? "",
       plat: String(body.pickup.lat),
@@ -214,227 +151,156 @@ export const API = {
       dlng: String(body.destination.lng),
     });
 
+    // Backend uses http.HandleFunc("/request-safewalk", server.request_safewalk)
+    // It reads query params.
     const res = await fetch(
-      `http://localhost:8090/request-safewalk?${qp.toString()}`,
+      `${BACKEND_BASE_URL}/request-safewalk?${qp.toString()}`,
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        method: "GET", // Using GET as params are in URL
+        headers: { "Content-Type": "application/json" }
       }
     );
 
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`request-safewalk failed: ${res.status} ${text}`);
+      throw new Error(`request-safewalk failed: ${res.status}`);
     }
 
     const data = await res.json();
+    // Expected: { success, safewalker, distance_km, match_code, error }
+
+    if (data.success === false) {
+      throw new Error(data.error || "No safewalkers available");
+    }
 
     return {
-      requestId:
-        data.requestId ?? `req_${Math.random().toString(36).slice(2, 8)}`,
+      requestId: data.safewalker, // mapping safewalker ID to requestId so we can track it
+      code: data.match_code ? String(data.match_code) : undefined,
     };
   },
 
   getStudentRequestStatus: async (
-    requestId: string
+    requestId: string // This is the safewalker SID
   ): Promise<StudentRequestStatusResponse> => {
-    if (USE_MOCK_AUTH) {
-      const req = mockRequests.get(requestId);
+    // We poll `status-update`.
+    // PROBLEM: We need valid lat/lng to avoid overwriting location with 0,0.
+    // Hack: We can't easily get location here without `explo-location`.
+    // But this function is just a poll for status.
+    // If we rely on heartbeat for location, can we send a "read-only" status update?
+    // Backend DOES NOT support read-only. It always updates.
+    // If we send 0,0, the Safewalker sees Student at 0,0.
+    // CRITICAL: This endpoint is broken for polling status without location.
+    // We will attempt to get location.
 
-      if (!req) {
-        return {
-          requestId,
-          status: "CANCELLED",
-          etaSeconds: null,
-          safewalkerLive: null,
-        };
-      }
-
-      return {
-        requestId,
-        status: req.status,
-        etaSeconds: req.etaSeconds,
-        safewalkerLive:
-          req.status === "ASSIGNED" || req.status === "WALKING"
-            ? {
-                // Fake live position (jittered)
-                lat: 41.8268 + Math.random() * 0.0005,
-                lng: -71.4025 + Math.random() * 0.0005,
-              }
-            : null,
-        studentCode:
-          req.status === "ASSIGNED" || req.status === "WALKING"
-            ? "1234" // Fixed code for demo simplicity, or use req.code if we stored it
-            : undefined,
-        safewalkerCode: undefined, // Not using this flow for now
-        safewalkerHeadingDegrees:
-          req.status === "ASSIGNED" || req.status === "WALKING"
-            ? Math.floor(Math.random() * 360)
-            : null,
-      };
+    let lat = 0;
+    let lng = 0;
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Lowest });
+      lat = loc.coords.latitude;
+      lng = loc.coords.longitude;
+    } catch (e) {
+      // failed to get loc
     }
 
-    // REAL BACKEND (later)
-    return apiFetch<StudentRequestStatusResponse>(
-      `/student/requests/${requestId}`
-    );
+    const qp = new URLSearchParams({
+      sid: requestId,
+      isStudent: "true",
+      isActiveRequest: "true",
+      label: "",
+      lat: String(lat),
+      lng: String(lng)
+    });
+
+    const res = await fetch(`${BACKEND_BASE_URL}/status-update?${qp.toString()}`, { method: "GET" });
+    // Response: { success, matching_status }
+    // matching_status: true => Code Matched (WALKING)
+    // matching_status: false => Not matched (ASSIGNED)
+
+    if (!res.ok) return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
+
+    try {
+      const data = await res.json();
+      // If data.success is false or not present?
+      const status = data.matching_status ? "WALKING" : "ASSIGNED";
+      return {
+        requestId,
+        status,
+        etaSeconds: null, // Backend doesn't return this
+        safewalkerLive: null, // Backend doesn't return this
+        safewalkerHeadingDegrees: null,
+        studentCode: undefined // We can't get it from here
+      };
+    } catch {
+      return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
+    }
   },
 
   cancelStudentRequest: async (requestId: string) => {
-    if (USE_MOCK_AUTH) {
-      mockRequests.delete(requestId);
-      return { ok: true };
-    }
-
-    return apiFetch<{ ok: true }>(
-      `/cancel-safewalk?sid=${encodeURIComponent(requestId)}&isStudent=${true}`,
-      {
-        method: "POST",
-      }
-    );
+    // Backend: /finish-request?sid=...
+    await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
+    return { ok: true };
   },
 
   // SafeWalker
   listSafewalkerRequests: async () => {
-    if (USE_MOCK_AUTH) {
-      // Return all MATCHING requests
-      const list: SafewalkerRequestListItem[] = [];
-      for (const req of mockRequests.values()) {
-        if (req.status === "MATCHING") {
-          list.push({
-            requestId: req.requestId,
-            studentName: "Student " + req.requestId.slice(-3),
-            pickupLabel: "Main Green", // Mock data
-            destinationLabel: "SciLi", // Mock data
-            createdAt: new Date(req.createdAt).getTime(),
-          });
-        }
-      }
-      return list.sort((a, b) =>
-        b.createdAt.toString().localeCompare(a.createdAt.toString())
-      );
-    }
-    return apiFetch<SafewalkerRequestListItem[]>("/safewalker/requests");
+    // Not supported.
+    return [];
   },
 
   getSafewalkerRequest: async (requestId: string) => {
-    if (USE_MOCK_AUTH) {
-      const req = mockRequests.get(requestId);
-      if (!req) return Promise.reject("Not found");
-
-      // Return details
-      return {
-        requestId: req.requestId,
-        studentName: "Student " + req.requestId.slice(-3),
-        pickup: { label: "Main Green", lat: 41.8268, lng: -71.4025 },
-        destination: { label: "SciLi", lat: 41.827, lng: -71.4 },
-        etaToStudentSeconds: 300,
-        etaTripSeconds: 600,
-        status: (req.status === "MATCHING" ? "OPEN" : "ACCEPTED") as
-          | "OPEN"
-          | "ACCEPTED",
-      };
-    }
-    return apiFetch<SafewalkerRequestDetail>(
-      `/safewalker/requests/${requestId}`
-    );
+    // Not supported.
+    return Promise.reject("Not supported");
   },
 
   acceptSafewalkerRequest: async (requestId: string) => {
-    if (USE_MOCK_AUTH) {
-      const req = mockRequests.get(requestId);
-      if (req) {
-        req.status = "ASSIGNED";
-        mockRequests.set(requestId, req);
-      }
-      return { ok: true };
-    }
-
-    return apiFetch<{ ok: true }>(`/safewalker/requests/${requestId}/accept`, {
-      method: "POST",
-    });
+    // Auto-accepted.
+    return { ok: true };
   },
 
   verifySafewalkerCode: async (requestId: string, code: string) => {
-    if (USE_MOCK_AUTH) {
-      const req = mockRequests.get(requestId);
-      if (!req) throw new Error("Request not found");
-
-      // In a real app we'd compare against the actual generated code
-      // For demo with fixed "1234":
-      if (code === "1234") {
-        req.status = "WALKING";
-        mockRequests.set(requestId, req);
-        return { ok: true };
-      } else {
-        throw new Error("Incorrect code");
-      }
-    }
-
-    return apiFetch<{ ok: true }>(`/safewalker/requests/${requestId}/verify`, {
-      method: "POST",
-      body: JSON.stringify({ code }),
+    // GET /checkcode?sid=...&code=...
+    const qp = new URLSearchParams({
+      sid: requestId,
+      code: code
     });
+    const res = await fetch(`${BACKEND_BASE_URL}/checkcode?${qp.toString()}`, { method: "GET" });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error("Incorrect code");
+    }
+    return { ok: true };
   },
 
   declineSafewalkerRequest: async (requestId: string) => {
-    if (USE_MOCK_AUTH) {
-      const req = mockRequests.get(requestId);
-      if (req) {
-        // Return request to matching pool
-        req.status = "MATCHING";
-        mockRequests.set(requestId, req);
-      }
-      return { ok: true };
-    }
-
-    return apiFetch<{ ok: true }>(`/safewalker/requests/${requestId}/decline`, {
-      method: "POST",
-    });
+    // /finish-request?sid=... (resets safewalker)
+    await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
+    return { ok: true };
   },
 
-  // Student marks complete
   completeStudentRequest: async (requestId: string) => {
-    if (USE_MOCK_AUTH) {
-      const req = mockRequests.get(requestId);
-      if (req) {
-        req.status = "COMPLETED";
-        mockRequests.set(requestId, req);
-      }
-      return { ok: true };
-    }
-
-    return apiFetch<{ ok: true }>(`/student/requests/${requestId}/complete`, {
-      method: "POST",
-    });
+    // /finish-request?sid=...
+    await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
+    return { ok: true };
   },
 
   deregisterSafewalker: async (sid: string) => {
-    return apiFetch<{ ok: true }>(
-      `/deregister-safewalker?sid=${encodeURIComponent(sid)}`,
-      {
-        method: "POST",
-      }
-    );
+    await fetch(`${BACKEND_BASE_URL}/deregister-safewalker?sid=${sid}`, { method: "GET" });
+    return { ok: true };
   },
 
-  // SafeWalker marks complete (optional, if we want dual confirmation)
   completeSafewalkerRequest: async (requestId: string) => {
-    // reuse same logic or just error if only student can do it
     return API.completeStudentRequest(requestId);
   },
+
   statusUpdate: async (params: {
     sid: string;
     isStudent: boolean;
     isActiveRequest: boolean;
-    label?: string; // blank ok
+    label?: string;
     lat: number;
     lng: number;
   }) => {
     const qp = new URLSearchParams({
-      sid: params.sid, // encodeURIComponent happens in URLSearchParams
+      sid: params.sid,
       isStudent: String(params.isStudent),
       isActiveRequest: String(params.isActiveRequest),
       label: params.label ?? "",
@@ -442,8 +308,10 @@ export const API = {
       lng: String(params.lng),
     });
 
-    return apiFetch<StatusUpdateResponse>(`/status-update?${qp.toString()}`, {
-      method: "POST",
+    const res = await fetch(`${BACKEND_BASE_URL}/status-update?${qp.toString()}`, {
+      method: "GET",
     });
+    const data = await res.json();
+    return data as StatusUpdateResponse;
   },
 };

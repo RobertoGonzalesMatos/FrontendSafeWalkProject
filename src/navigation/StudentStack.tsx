@@ -7,7 +7,7 @@ import StudentStatusScreen from "../screens/student/StudentStatusScreen";
 export type StudentStackParamList = {
   StudentHome: undefined;
   StudentRequest: undefined;
-  StudentStatus: { requestId: string };
+  StudentStatus: { requestId: string; code?: string };
 };
 
 const Stack = createNativeStackNavigator();

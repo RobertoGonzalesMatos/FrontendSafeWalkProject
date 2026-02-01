@@ -1,151 +1,95 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, Text, View, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
-import MapView, { Marker } from "react-native-maps";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 import { API } from "../../api/endpoints";
-import { SafewalkerRequestDetail } from "../../api/types";
+import { useAuth } from "../../auth/AuthContext";
+import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 
-type Props = NativeStackScreenProps<SafewalkerStackParamList, "SafewalkerDetail">;
+type Props = NativeStackScreenProps<SafewalkerStackParamList, "SafewalkerRequestDetail">;
 
-const COLORS = {
-  bg: "#0F172A",
-  card: "#1E293B",
-  border: "#334155",
-  text: "#FFFFFF",
-  muted: "#94A3B8",
-  yellow: "#F4C430",
-  yellowDark: "#D9A800",
-  danger: "#EF4444",
-};
-
-export default function SafewalkerRequestDetailScreen({ route, navigation }: Props) {
-  const { requestId } = route.params;
-  const [request, setRequest] = useState<SafewalkerRequestDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [accepting, setAccepting] = useState(false);
+export default function SafewalkerRequestDetailScreen({ navigation, route }: Props) {
+  const { user } = useAuth();
+  const { requestId, studentLabel, lat, lng } = route.params;
+  const [timeLeft, setTimeLeft] = useState(30);
 
   useEffect(() => {
-    loadRequest();
-  }, [requestId]);
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleDecline();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const loadRequest = async () => {
+  const handleDecline = async () => {
     try {
-      setLoading(true);
-      const data = await API.getSafewalkerRequest(requestId);
-      setRequest(data);
+      await API.declineSafewalkerRequest(user?.id || requestId);
+      navigation.replace("SafewalkerHome");
     } catch (e) {
-      Alert.alert("Error", "Could not load request details");
-      navigation.goBack();
-    } finally {
-      setLoading(false);
+      console.warn("Decline failed", e);
+      navigation.replace("SafewalkerHome");
     }
   };
 
-  const handleAccept = async () => {
-    try {
-      setAccepting(true);
-      await API.acceptSafewalkerRequest(requestId);
-      // Navigate to Active Walk
-      navigation.replace("SafewalkerActive", { requestId });
-    } catch (e) {
-      Alert.alert("Error", "Failed to accept request");
-    } finally {
-      setAccepting(false);
-    }
+  const handleAccept = () => {
+    navigation.replace("SafewalkerActiveWalk", {
+      requestId: user?.id || requestId,
+      studentLat: lat,
+      studentLng: lng
+    });
   };
-
-  if (loading || !request) {
-    return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator color={COLORS.yellow} />
-      </View>
-    );
-  }
-
-  const pickupLat = request.pickup.lat ?? 41.8268;
-  const pickupLng = request.pickup.lng ?? -71.4025;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <View style={{ flex: 1 }}>
-        {/* Map View */}
-        <View style={{ flex: 1 }}>
-          <MapView
-            style={{ flex: 1 }}
-            initialRegion={{
-              latitude: pickupLat,
-              longitude: pickupLng,
-              latitudeDelta: 0.015,
-              longitudeDelta: 0.015,
-            }}
-          >
-            <Marker
-              coordinate={{ latitude: pickupLat, longitude: pickupLng }}
-              title="Pickup"
-              description={request.pickup.label}
-              pinColor={COLORS.yellow}
-            />
-            {request.destination.lat && request.destination.lng && (
-              <Marker
-                coordinate={{ latitude: request.destination.lat, longitude: request.destination.lng }}
-                title="Destination"
-                description={request.destination.label}
-                pinColor="cyan"
-              />
-            )}
-          </MapView>
-        </View>
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>New Request!</Text>
 
-        {/* Info Card */}
-        <View style={{
-          padding: 20,
-          backgroundColor: COLORS.card,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          borderTopWidth: 1,
-          borderColor: COLORS.border,
-          gap: 16
-        }}>
-          <View>
-            <Text style={{ color: COLORS.muted, fontSize: 13, textTransform: "uppercase", letterSpacing: 1 }}>
-              Request For
-            </Text>
-            <Text style={{ color: COLORS.text, fontSize: 24, fontWeight: "800" }}>
-              {request.studentName}
-            </Text>
-          </View>
+      <View style={styles.timerContainer}>
+        <View style={[styles.timerBar, { width: `${(timeLeft / 30) * 100}%` }]} />
+      </View>
+      <Text style={styles.timerText}>{timeLeft}s remaining</Text>
 
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <View style={{ flex: 1, padding: 12, backgroundColor: COLORS.bg, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border }}>
-              <Text style={{ color: COLORS.muted, fontSize: 12 }}>Pickup</Text>
-              <Text style={{ color: COLORS.text, fontWeight: "600", marginTop: 4 }}>{request.pickup.label}</Text>
-            </View>
-            <View style={{ flex: 1, padding: 12, backgroundColor: COLORS.bg, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border }}>
-              <Text style={{ color: COLORS.muted, fontSize: 12 }}>Destination</Text>
-              <Text style={{ color: COLORS.text, fontWeight: "600", marginTop: 4 }}>{request.destination.label}</Text>
-            </View>
-          </View>
+      <View style={styles.card}>
+        <Text style={styles.label}>Location:</Text>
+        <Text style={styles.value}>{studentLabel || "Unknown Location"}</Text>
+      </View>
 
-          <Pressable
-            onPress={handleAccept}
-            disabled={accepting}
-            style={({ pressed }) => ({
-              backgroundColor: pressed ? COLORS.yellowDark : COLORS.yellow,
-              paddingVertical: 16,
-              borderRadius: 16,
-              alignItems: "center",
-              opacity: accepting ? 0.7 : 1,
-              marginTop: 8
-            })}
-          >
-            <Text style={{ fontSize: 18, fontWeight: "900", color: "#0B1C2D" }}>
-              {accepting ? "Accepting..." : "Accept Request"}
-            </Text>
-          </Pressable>
-        </View>
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.declineButton} onPress={handleDecline}>
+          <Text style={styles.buttonText}>Decline</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.acceptButton} onPress={handleAccept}>
+          <Text style={styles.buttonText}>Go to Student</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 20, backgroundColor: "#fff", justifyContent: "center" },
+  title: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginBottom: 30 },
+  timerContainer: {
+    height: 10,
+    backgroundColor: "#eee",
+    borderRadius: 5,
+    overflow: "hidden",
+    marginBottom: 10,
+    width: "100%"
+  },
+  timerBar: { height: "100%", backgroundColor: "#e74c3c" },
+  timerText: { textAlign: "center", marginBottom: 40, color: "#666" },
+  card: { padding: 20, backgroundColor: "#f9f9f9", borderRadius: 10, marginBottom: 40 },
+  label: { fontSize: 16, color: "#888", marginBottom: 5 },
+  value: { fontSize: 18, fontWeight: "600" },
+  actions: { flexDirection: "row", justifyContent: "space-between", gap: 15 },
+  declineButton: { flex: 1, padding: 15, backgroundColor: "#e74c3c", borderRadius: 10, alignItems: "center" },
+  acceptButton: { flex: 1, padding: 15, backgroundColor: "#2ecc71", borderRadius: 10, alignItems: "center" },
+  buttonText: { color: "white", fontWeight: "bold", fontSize: 16 }
+});

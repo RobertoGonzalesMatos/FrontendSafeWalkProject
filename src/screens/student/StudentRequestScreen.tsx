@@ -131,7 +131,10 @@ export default function StudentRequestScreen({ navigation }: Props) {
         expoPushToken: pushToken,
       });
 
-      navigation.replace("StudentStatus", { requestId: res.requestId });
+      navigation.replace("StudentStatus", {
+        requestId: res.requestId,
+        code: res.code,
+      });
     } catch (e: any) {
       Alert.alert("Error", e.message ?? String(e));
     } finally {

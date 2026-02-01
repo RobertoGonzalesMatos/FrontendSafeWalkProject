@@ -20,7 +20,7 @@ export type StudentCreateRequestBody = {
   expoPushToken: string | null;
 };
 
-export type StudentCreateRequestResponse = { requestId: string };
+export type StudentCreateRequestResponse = { requestId: string; code?: string };
 
 export type StudentRequestStatus =
   | "MATCHING"
@@ -63,4 +63,9 @@ export type SafewalkerRequestDetail = {
 export type StatusUpdateResponse = {
   success: boolean;
   matching_status: boolean;
+  // Safewalker Polling
+  is_assigned?: boolean;
+  student_lat?: number;
+  student_lng?: number;
+  student_label?: string;
 };

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import type { User } from "../api/types";
 import { setAuthToken } from "../api/client";
-import { API } from "../api/endpoints";
-import { stopStatusHeartbeat } from "../api/statusHeartbeat";
+import { API, registerSafewalker, getDeviceInfoForRegistration } from "../api/endpoints";
+import { startStatusHeartbeat, stopStatusHeartbeat } from "../api/statusHeartbeat";
 
 type ActiveRequestSummary = {
   requestId: string;
@@ -44,28 +44,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const idToken = session.tokens?.idToken?.toString();
 
       if (currentUser && idToken) {
+        let email = currentUser.signInDetails?.loginId;
         let displayName = "User";
+
         try {
           const attributes = await fetchUserAttributes();
-          // Try common name fields, fallback to email username, then "User"
           displayName =
             attributes.name ||
             attributes.given_name ||
             attributes.email?.split("@")[0] ||
             "User";
+
+          // Use attribute email if available and not set by sign in details
+          if (!email && attributes.email) {
+            email = attributes.email;
+          }
         } catch (err) {
           console.log("[AuthContext] Failed to fetch attributes:", err);
         }
 
+        if (!email) email = "unknown";
+
+        // 1. Role Logic
+        const role = email === "henrywang3510@gmail.com" ? "SAFEWALKER" : "STUDENT";
+
+        // 2. Log User Details (User Request)
+        console.log(`[Auth] Logged in: ${email} | Role: ${role}`);
+
         const userData: User = {
           id: currentUser.userId,
-          email: currentUser.signInDetails?.loginId || "unknown",
-          role: "STUDENT",
+          email,
+          role,
           name: displayName,
         };
         setToken(idToken);
         setUser(userData);
         setAuthToken(idToken);
+
+        // 3. Register if Safewalker & Start Heartbeat
+        if (role === "SAFEWALKER") {
+          // We do this async without blocking the UI immediately, or we could await.
+          // Since syncUserFromSession returns boolean, we'll let it run.
+          (async () => {
+            try {
+              const { lat, long } = await getDeviceInfoForRegistration();
+              await registerSafewalker({
+                name: userData.name,
+                sid: userData.id,
+                label: "",
+                lat,
+                long
+              });
+              console.log("[Auth] Safewalker registered successfully");
+            } catch (e) {
+              console.warn("[Auth] Safewalker registration failed:", e);
+            }
+
+            await startStatusHeartbeat({
+              sid: userData.id,
+              isStudent: false,
+              getIsActiveRequest: () => true,
+              intervalMs: 5000,
+              label: "",
+            });
+          })();
+        } else {
+          // Student also needs heartbeat if they have active request? 
+          // Actually endpoints.ts logic started it for both.
+          // For student, we usually start it when there is an active request?
+          // But let's match previous logic:
+          startStatusHeartbeat({
+            sid: userData.id,
+            isStudent: true,
+            getIsActiveRequest: () => false, // Student default not active
+            intervalMs: 5000,
+            label: "",
+          });
+        }
+
         return true;
       }
     } catch (e) {
@@ -96,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             );
             try {
               await signOut({ global: false });
-            } catch (_) {}
+            } catch (_) { }
             await signInWithRedirect({ provider: "Google" });
           }
         } else {
@@ -158,16 +214,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       signInWithGoogle,
       logout: () => {
-        // Just clear local state
-        // DO NOT call Amplify signOut - it triggers OAuth redirects
+        // Clear local state
         setToken(null);
         setUser(null);
         setActiveRequest(null);
         setAuthToken(null);
+
         if (user?.role === "SAFEWALKER") {
           stopStatusHeartbeat();
           API.deregisterSafewalker(user.id);
         }
+
+        // Explicitly sign out from Amplify/Google to force re-login next time
+        import("aws-amplify/auth").then(({ signOut }) => {
+          signOut({ global: true }).catch(err => console.log("[Auth] SignOut error", err));
+        });
       },
 
       activeRequest,

@@ -29,23 +29,23 @@ function Pill({ status }: { status: string }) {
   const meta =
     status === "ASSIGNED"
       ? {
-          label: "SAFEWALKER ON WAY",
-          bg: "rgba(34,197,94,0.15)",
-          fg: COLORS.green,
-        }
+        label: "SAFEWALKER ON WAY",
+        bg: "rgba(34,197,94,0.15)",
+        fg: COLORS.green,
+      }
       : status === "WALKING"
-      ? {
+        ? {
           label: "SAFEWALK IN PROGRESS",
           bg: "rgba(34,197,94,0.3)",
           fg: COLORS.green,
         }
-      : status === "MATCHING"
-      ? { label: "MATCHING", bg: "rgba(30,144,255,0.15)", fg: COLORS.blue }
-      : status === "NO_AVAILABLE"
-      ? { label: "NO AVAILABLE", bg: "rgba(245,158,11,0.18)", fg: COLORS.amber }
-      : status === "COMPLETED"
-      ? { label: "COMPLETED", bg: "rgba(34,197,94,0.15)", fg: COLORS.green }
-      : { label: "CANCELLED", bg: "rgba(148,163,184,0.15)", fg: COLORS.muted };
+        : status === "MATCHING"
+          ? { label: "MATCHING", bg: "rgba(30,144,255,0.15)", fg: COLORS.blue }
+          : status === "NO_AVAILABLE"
+            ? { label: "NO AVAILABLE", bg: "rgba(245,158,11,0.18)", fg: COLORS.amber }
+            : status === "COMPLETED"
+              ? { label: "COMPLETED", bg: "rgba(34,197,94,0.15)", fg: COLORS.green }
+              : { label: "CANCELLED", bg: "rgba(148,163,184,0.15)", fg: COLORS.muted };
 
   return (
     <View
@@ -125,7 +125,7 @@ function SecondaryButton({
 }
 
 export default function StudentStatusScreen({ route, navigation }: Props) {
-  const { requestId } = route.params;
+  const { requestId, code } = route.params;
   const [data, setData] = useState<StudentRequestStatusResponse | null>(null);
   const { setActiveRequest } = useAuth();
 
@@ -148,7 +148,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
           requestId,
           status: res.status, // keep real status
           etaSeconds: res.etaSeconds ?? null,
-          studentCode: res.studentCode,
+          studentCode: res.studentCode || code, // Fallback to route param
         });
       } else if (res.status === "MATCHING") {
         setActiveRequest({ requestId, status: "MATCHING" });
@@ -264,7 +264,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
                     letterSpacing: 4,
                   }}
                 >
-                  {data.studentCode || "----"}
+                  {data.studentCode || code || "----"}
                 </Text>
               </View>
 

@@ -4,11 +4,10 @@ import {
   Image,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { API } from "../../api/endpoints";
+// API removed
 import { useAuth } from "../../auth/AuthContext";
 
 // Theme tokens (Night Safety + Safewalk Yellow)
@@ -24,21 +23,10 @@ const COLORS = {
 
 export default function LoginScreen() {
   const { login, signInWithGoogle } = useAuth();
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+
   const [loading, setLoading] = useState(false);
 
-  async function onLogin() {
-    setLoading(true);
-    try {
-      const res = await API.login(email.trim(), code.trim());
-      login(res.token, res.user);
-    } catch (e: any) {
-      Alert.alert("Login failed", e.message ?? String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+
 
   async function onGoogleLogin() {
     try {
@@ -70,15 +58,15 @@ export default function LoginScreen() {
         {/* Login card */}
         <View
           style={{
-            backgroundColor: COLORS.card,
+            backgroundColor: COLORS.yellow,
             borderWidth: 1,
-            borderColor: COLORS.border,
+            borderColor: COLORS.yellow,
             borderRadius: 18,
             padding: 16,
             gap: 12,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: "800", color: COLORS.text }}>
+          <Text style={{ fontSize: 18, fontWeight: "800", color: COLORS.bg }}>
             Sign in
           </Text>
 
@@ -112,91 +100,7 @@ export default function LoginScreen() {
             </Text>
           </Pressable>
 
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 }}>
-            <View style={{ height: 1, backgroundColor: COLORS.border, flex: 1 }} />
-            <Text style={{ color: COLORS.muted, fontSize: 12 }}>OR</Text>
-            <View style={{ height: 1, backgroundColor: COLORS.border, flex: 1 }} />
-          </View>
 
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: COLORS.muted, fontSize: 13 }}>Email (Dev)</Text>
-            <TextInput
-              placeholder="name@brown.edu"
-              placeholderTextColor={COLORS.muted}
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-              style={{
-                backgroundColor: "#0B1C2D",
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                borderRadius: 12,
-                padding: 12,
-                color: COLORS.text,
-              }}
-            />
-          </View>
-
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: COLORS.muted, fontSize: 13 }}>
-              Access code (Dev)
-            </Text>
-            <TextInput
-              placeholder="••••••"
-              placeholderTextColor={COLORS.muted}
-              value={code}
-              onChangeText={setCode}
-              secureTextEntry
-              style={{
-                backgroundColor: "#0B1C2D",
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                borderRadius: 12,
-                padding: 12,
-                color: COLORS.text,
-              }}
-            />
-          </View>
-
-          {/* CTA */}
-          <Pressable
-            onPress={onLogin}
-            disabled={loading}
-            style={({ pressed }) => ({
-              backgroundColor: pressed ? COLORS.yellowDark : COLORS.yellow,
-              paddingVertical: 14,
-              borderRadius: 14,
-              alignItems: "center",
-              marginTop: 8,
-              opacity: loading ? 0.7 : 1,
-            })}
-          >
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "900",
-                color: "#0B1C2D",
-              }}
-            >
-              {loading ? "Signing in…" : "Dev Login"}
-            </Text>
-          </Pressable>
-
-          {/* Hackathon helper */}
-          <Text
-            style={{
-              color: COLORS.muted,
-              fontSize: 12,
-              textAlign: "center",
-              marginTop: 6,
-            }}
-          >
-            Tip: use access code{" "}
-            <Text style={{ color: COLORS.yellow, fontWeight: "800" }}>
-              safewalker
-            </Text>{" "}
-            to enter SafeWalker mode
-          </Text>
         </View>
 
         {/* Footer */}

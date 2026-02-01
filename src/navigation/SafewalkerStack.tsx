@@ -7,9 +7,8 @@ import SafewalkerActiveWalkScreen from "../screens/safewalker/SafewalkerActiveWa
 
 export type SafewalkerStackParamList = {
   SafewalkerHome: undefined;
-  SafewalkerList: undefined;
-  SafewalkerDetail: { requestId: string };
-  SafewalkerActive: { requestId: string };
+  SafewalkerRequestDetail: { requestId: string; studentLabel?: string; lat: number; lng: number };
+  SafewalkerActiveWalk: { requestId: string; studentLat: number; studentLng: number };
 };
 
 const Stack = createNativeStackNavigator<SafewalkerStackParamList>();
@@ -30,17 +29,12 @@ export default function SafewalkerStack() {
         options={{ title: "SafeWalker" }}
       />
       <Stack.Screen
-        name="SafewalkerList"
-        component={SafewalkerRequestListScreen}
-        options={{ title: "Requests" }}
-      />
-      <Stack.Screen
-        name="SafewalkerDetail"
+        name="SafewalkerRequestDetail"
         component={SafewalkerRequestDetailScreen}
-        options={{ title: "Request" }}
+        options={{ title: "Match Found!" }}
       />
       <Stack.Screen
-        name="SafewalkerActive"
+        name="SafewalkerActiveWalk"
         component={SafewalkerActiveWalkScreen}
         options={{ title: "Active Walk" }}
       />
