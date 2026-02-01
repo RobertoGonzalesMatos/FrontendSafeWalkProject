@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View, ActivityIndicator } from "react-native";
+import { Alert, Pressable, Text, TextInput, View, ActivityIndicator, Keyboard, TouchableWithoutFeedback, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { usePreventRemove } from "@react-navigation/native";
 import { SafewalkerStackParamList } from "../../navigation/SafewalkerStack";
 import { API } from "../../api/endpoints";
 import { StudentRequestStatusResponse } from "../../api/types";
@@ -59,6 +60,47 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
     };
   }, [requestId, navigation]);
 
+  // Prevent removal for ASSIGNED and WALKING status using official hook
+  // SafeWalker can only leave after student marks walk as COMPLETED
+  const shouldPreventRemove = status?.status === "ASSIGNED" || status?.status === "WALKING";
+
+  usePreventRemove(shouldPreventRemove, ({ data }) => {
+    const isWalkingStatus = status?.status === "WALKING";
+
+    Alert.alert(
+      isWalkingStatus ? "Cannot Leave Walk" : "Decline Request?",
+      isWalkingStatus
+        ? "You must complete the SafeWalk before leaving. Only the student can mark it as complete."
+        : "Going back will return this request to the pool for other safewalkers.",
+      isWalkingStatus
+        ? [{ text: "OK", style: "cancel" }]
+        : [
+          {
+            text: "Stay",
+            style: "cancel",
+          },
+          {
+            text: "Decline & Go Back",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await API.declineSafewalkerRequest(requestId);
+                navigation.dispatch(data.action);
+              } catch (error) {
+                Alert.alert("Error", "Failed to decline request.");
+              }
+            },
+          },
+        ]
+    );
+  });
+
+  React.useEffect(() => {
+    navigation.setOptions({
+      headerBackButtonMenuEnabled: false,
+    });
+  }, [navigation]);
+
   const handleVerify = async () => {
     if (code.length < 4) {
       Alert.alert("Invalid Code", "Please enter the 4-digit code from the student.");
@@ -77,6 +119,28 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
     }
   };
 
+  const handleDecline = async () => {
+    Alert.alert(
+      "Decline Request?",
+      "This will return the request to the pool for other safewalkers.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Decline",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await API.declineSafewalkerRequest(requestId);
+              navigation.goBack();
+            } catch (e) {
+              Alert.alert("Error", "Failed to decline request.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (!status) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: "center", alignItems: "center" }}>
@@ -86,123 +150,141 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
     );
   }
 
-  // If we are ASSIGNED, we navigate to Student.
-  // If we are WALKING, we navigate to Destination side-by-side.
-  // We need logic to know where to show marker.
-  // Since we rely on mock data, let's just show Map centered on Student (if assigned) or Dest (if walking).
-
-  // Note: Mock API returns `safewalkerLive` but doesn't exactly give us stored pickup/dest coords in the STATUS response.
-  // In a real app we'd merge response or fetch details again.
-  // For now, let's assume we can see student's live location.
-
   const isWalking = status.status === "WALKING";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <View style={{ flex: 1 }}>
-        <MapView
-          style={{ flex: 1 }}
-          region={{
-            latitude: 41.8268,
-            longitude: -71.4025,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-          showsUserLocation
-        >
-          {/* SafeWalker (User) is shown via showsUserLocation */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{ flex: 1 }}>
+          <MapView
+            style={{ flex: 1 }}
+            region={{
+              latitude: 41.8268,
+              longitude: -71.4025,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            }}
+            showsUserLocation
+          >
+            {/* SafeWalker (User) is shown via showsUserLocation */}
 
-          {/* Student Location (Approximated for this view) */}
-          {status.safewalkerLive && !isWalking && (
-            <Marker
-              coordinate={{
-                latitude: status.safewalkerLive.lat,
-                longitude: status.safewalkerLive.lng,
-              }}
-              title="Student Location"
-              pinColor="cyan"
-            />
-          )}
-        </MapView>
-
-        {/* Overlay Card */}
-        <View style={{
-          position: "absolute",
-          bottom: 0, left: 0, right: 0,
-          backgroundColor: COLORS.card,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          padding: 20,
-          borderTopWidth: 1,
-          borderColor: COLORS.border,
-        }}>
-
-          <Text style={{ color: COLORS.yellow, fontWeight: "bold", marginBottom: 8 }}>
-            STATUS: {status.status}
-          </Text>
-
-          {!isWalking ? (
-            <View style={{ gap: 12 }}>
-              <Text style={{ color: COLORS.text, fontSize: 18, fontWeight: "bold" }}>
-                Meet the Student
-              </Text>
-              <Text style={{ color: COLORS.muted }}>
-                Go to the pickup location. When you meet, ask for their Safe Code.
-              </Text>
-
-              <TextInput
-                placeholder="Enter 4-digit Code"
-                placeholderTextColor={COLORS.muted}
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-                maxLength={4}
-                style={{
-                  backgroundColor: COLORS.inputBg,
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
-                  borderRadius: 12,
-                  padding: 16,
-                  color: COLORS.text,
-                  fontSize: 20,
-                  textAlign: "center",
-                  letterSpacing: 4,
-                  fontWeight: "bold"
+            {/* Student Location (Approximated for this view) */}
+            {status.safewalkerLive && !isWalking && (
+              <Marker
+                coordinate={{
+                  latitude: status.safewalkerLive.lat,
+                  longitude: status.safewalkerLive.lng,
                 }}
+                title="Student Location"
+                pinColor="cyan"
               />
+            )}
+          </MapView>
 
-              <Pressable
-                onPress={handleVerify}
-                disabled={verifying}
-                style={({ pressed }) => ({
-                  backgroundColor: pressed ? COLORS.yellowDark : COLORS.yellow,
-                  paddingVertical: 14,
-                  borderRadius: 14,
-                  alignItems: "center",
-                  opacity: verifying ? 0.7 : 1
-                })}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "900", color: "#0B1C2D" }}>
-                  {verifying ? "Verifying..." : "Verify & Start Walk"}
+          {/* Overlay Card */}
+          <View style={{
+            position: "absolute",
+            bottom: 0, left: 0, right: 0,
+            backgroundColor: COLORS.card,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            padding: 20,
+            borderTopWidth: 1,
+            borderColor: COLORS.border,
+          }}>
+
+            <Text style={{ color: COLORS.yellow, fontWeight: "bold", marginBottom: 8 }}>
+              STATUS: {status.status}
+            </Text>
+
+            {!isWalking ? (
+              <View style={{ gap: 12 }}>
+                <Text style={{ color: COLORS.text, fontSize: 18, fontWeight: "bold" }}>
+                  Meet the Student
                 </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={{ gap: 12 }}>
-              <Text style={{ color: COLORS.success, fontSize: 20, fontWeight: "bold" }}>
-                SafeWalk in Progress
-              </Text>
-              <Text style={{ color: COLORS.muted }}>
-                Escort the student to their destination.
-              </Text>
-              <Text style={{ color: COLORS.muted, fontSize: 12, fontStyle: "italic" }}>
-                Only the student can mark the walk as complete.
-              </Text>
-            </View>
-          )}
+                <Text style={{ color: COLORS.muted }}>
+                  Go to the pickup location. When you meet, ask for their Safe Code.
+                </Text>
 
+                <TextInput
+                  placeholder="Enter 4-digit Code"
+                  placeholderTextColor={COLORS.muted}
+                  value={code}
+                  onChangeText={setCode}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    Keyboard.dismiss();
+                    if (code.length === 4) handleVerify();
+                  }}
+                  blurOnSubmit={true}
+                  style={{
+                    backgroundColor: COLORS.inputBg,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    borderRadius: 12,
+                    padding: 16,
+                    color: COLORS.text,
+                    fontSize: 20,
+                    textAlign: "center",
+                    letterSpacing: 4,
+                    fontWeight: "bold"
+                  }}
+                />
+
+                <Pressable
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleVerify();
+                  }}
+                  disabled={verifying}
+                  style={({ pressed }) => ({
+                    backgroundColor: pressed ? COLORS.yellowDark : COLORS.yellow,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    opacity: verifying ? 0.7 : 1
+                  })}
+                >
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#0B1C2D" }}>
+                    {verifying ? "Verifying..." : "Verify & Start Walk"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleDecline}
+                  style={({ pressed }) => ({
+                    borderWidth: 1,
+                    borderColor: pressed ? "#475569" : COLORS.border,
+                    backgroundColor: pressed ? "#162133" : "transparent",
+                    paddingVertical: 12,
+                    borderRadius: 14,
+                    alignItems: "center",
+                  })}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: COLORS.text }}>
+                    Decline Request
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ gap: 12 }}>
+                <Text style={{ color: COLORS.success, fontSize: 20, fontWeight: "bold" }}>
+                  SafeWalk in Progress
+                </Text>
+                <Text style={{ color: COLORS.muted }}>
+                  Escort the student to their destination.
+                </Text>
+                <Text style={{ color: COLORS.muted, fontSize: 12, fontStyle: "italic" }}>
+                  Only the student can mark the walk as complete.
+                </Text>
+              </View>
+            )}
+
+          </View>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }

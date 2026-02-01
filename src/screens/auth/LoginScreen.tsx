@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   Pressable,
   Text,
   TextInput,
@@ -96,7 +97,10 @@ export default function LoginScreen() {
               gap: 10
             })}
           >
-            {/* Simple Google G placeholder or just text */}
+            <Image
+              source={require('../../../assets/google-logo.png')}
+              style={{ width: 20, height: 20 }}
+            />
             <Text
               style={{
                 fontSize: 16,

@@ -25,7 +25,7 @@ export function usePushToken() {
         });
       }
     }
-    run().catch(() => {});
+    run().catch(() => { });
   }, []);
 
   return token;
