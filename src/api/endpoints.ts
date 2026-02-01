@@ -15,6 +15,7 @@ import { startStatusHeartbeat } from "./statusHeartbeat";
 import { BACKEND_BASE_URL } from "../config";
 
 const USE_MOCK_AUTH = false; // Mock disabled
+let lastKnownLocation = { lat: 0, lng: 0 };
 
 type RegisterSafewalkerParams = {
   name: string;
@@ -191,14 +192,17 @@ export const API = {
     // CRITICAL: This endpoint is broken for polling status without location.
     // We will attempt to get location.
 
-    let lat = 0;
-    let lng = 0;
+    // Use last known location if fetch fails to avoid overwriting with 0,0
+    let lat = lastKnownLocation.lat;
+    let lng = lastKnownLocation.lng;
     try {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Lowest });
       lat = loc.coords.latitude;
       lng = loc.coords.longitude;
+      // Update cache
+      lastKnownLocation = { lat, lng };
     } catch (e) {
-      // failed to get loc
+      // failed to get loc, keep last known
     }
 
     const qp = new URLSearchParams({

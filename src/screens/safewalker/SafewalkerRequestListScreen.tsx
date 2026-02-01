@@ -135,8 +135,10 @@ export default function SafewalkerRequestListScreen({ navigation }: Props) {
         renderItem={({ item }) => (
           <Pressable
             onPress={() =>
-              navigation.navigate("SafewalkerDetail", {
+              navigation.navigate("SafewalkerActiveWalk", {
                 requestId: item.requestId,
+                studentLat: item.pickupLat,
+                studentLng: item.pickupLng,
               })
             }
             style={({ pressed }) => ({

@@ -11,19 +11,8 @@ import { useAuth } from "../../auth/AuthContext";
 
 type Props = NativeStackScreenProps<StudentStackParamList, "StudentStatus">;
 
-const COLORS = {
-  bg: "#0F172A",
-  card: "#1E293B",
-  border: "#334155",
-  text: "#FFFFFF",
-  muted: "#94A3B8",
-  yellow: "#F4C430",
-  yellowDark: "#D9A800",
-  green: "#22C55E",
-  amber: "#F59E0B",
-  blue: "#1E90FF",
-  red: "#EF4444",
-};
+import { COLORS } from "../../theme/colors";
+
 
 function Pill({ status }: { status: string }) {
   const meta =

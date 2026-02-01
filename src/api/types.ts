@@ -46,6 +46,8 @@ export type SafewalkerRequestListItem = {
   pickupLabel: string;
   destinationLabel: string;
   createdAt: number;
+  pickupLat: number;
+  pickupLng: number;
 };
 
 export type SafewalkerRequestDetail = {
