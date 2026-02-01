@@ -68,7 +68,7 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
 
           setActiveState({ status: "COMPLETED", studentLocation: null });
           Alert.alert("Info", "The request has ended.", [
-            { text: "OK", onPress: () => navigation.popToTop() }
+            { text: "OK", onPress: () => navigation.replace("SafewalkerHome") }
           ]);
           return;
         }
@@ -125,7 +125,7 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
   const handleDecline = async () => {
     try {
       await API.declineSafewalkerRequest(requestId);
-      navigation.popToTop();
+      navigation.replace("SafewalkerHome");
     } catch (e) { console.warn(e); }
   };
 
