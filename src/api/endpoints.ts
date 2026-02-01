@@ -217,32 +217,26 @@ export const API = {
 
     if (!res.ok) return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
 
-    console.log(`[API] getStudentRequestStatus polling SID: ${requestId}`);
-    const data = await res.json();
+    try {
+      const data = await res.json();
 
-    const swLive = (data.safewalker_lat || data.safewalker_lng)
-      ? { lat: data.safewalker_lat, lng: data.safewalker_lng }
-      : null;
+      // Parse Safewalker Location:
+      const swLive = (data.safewalker_lat || data.safewalker_lng)
+        ? { lat: data.safewalker_lat, lng: data.safewalker_lng }
+        : null;
 
-    // Backend logic:
-    // matching_status is true if "walking" (code matched).
-    // matching_status is false if just assigned (or searching).
-    // BUT if we have data.match_code, we are at least assigned.
-
-    const status = data.matching_status ? "WALKING" : (data.match_code ? "ASSIGNED" : "MATCHING");
-
-    return {
-      requestId,
-      status,
-      etaSeconds: null,
-      safewalkerLive: swLive,
-      safewalkerHeadingDegrees: null,
-      studentCode: data.match_code ? String(data.match_code) : undefined
-    };
-  } catch {
-    return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
-  }
-},
+      return {
+        requestId,
+        status: data.matching_status ? "WALKING" : "ASSIGNED",
+        etaSeconds: null,
+        safewalkerLive: swLive,
+        safewalkerHeadingDegrees: null,
+        studentCode: data.match_code ? String(data.match_code) : undefined
+      };
+    } catch {
+      return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
+    }
+  },
 
   cancelStudentRequest: async (requestId: string) => {
     // Backend: /finish-request?sid=...
@@ -250,78 +244,78 @@ export const API = {
     return { ok: true };
   },
 
-    // SafeWalker
-    listSafewalkerRequests: async () => {
-      // Not supported.
-      return [];
-    },
+  // SafeWalker
+  listSafewalkerRequests: async () => {
+    // Not supported.
+    return [];
+  },
 
-      getSafewalkerRequest: async (requestId: string) => {
-        // Not supported.
-        return Promise.reject("Not supported");
-      },
+  getSafewalkerRequest: async (requestId: string) => {
+    // Not supported.
+    return Promise.reject("Not supported");
+  },
 
-        acceptSafewalkerRequest: async (requestId: string) => {
-          // Auto-accepted.
-          return { ok: true };
-        },
+  acceptSafewalkerRequest: async (requestId: string) => {
+    // Auto-accepted.
+    return { ok: true };
+  },
 
-          verifySafewalkerCode: async (requestId: string, code: string) => {
-            // GET /checkcode?sid=...&code=...
-            const qp = new URLSearchParams({
-              sid: requestId,
-              code: code
-            });
-            const res = await fetch(`${BACKEND_BASE_URL}/checkcode?${qp.toString()}`, { method: "GET" });
-            const data = await res.json();
-            if (!data.success) {
-              throw new Error("Incorrect code");
-            }
-            return { ok: true };
-          },
+  verifySafewalkerCode: async (requestId: string, code: string) => {
+    // GET /checkcode?sid=...&code=...
+    const qp = new URLSearchParams({
+      sid: requestId,
+      code: code
+    });
+    const res = await fetch(`${BACKEND_BASE_URL}/checkcode?${qp.toString()}`, { method: "GET" });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error("Incorrect code");
+    }
+    return { ok: true };
+  },
 
-            declineSafewalkerRequest: async (requestId: string) => {
-              // /finish-request?sid=... (resets safewalker)
-              await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
-              return { ok: true };
-            },
+  declineSafewalkerRequest: async (requestId: string) => {
+    // /finish-request?sid=... (resets safewalker)
+    await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
+    return { ok: true };
+  },
 
-              completeStudentRequest: async (requestId: string) => {
-                // /finish-request?sid=...
-                await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
-                return { ok: true };
-              },
+  completeStudentRequest: async (requestId: string) => {
+    // /finish-request?sid=...
+    await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
+    return { ok: true };
+  },
 
-                deregisterSafewalker: async (sid: string) => {
-                  await fetch(`${BACKEND_BASE_URL}/deregister-safewalker?sid=${sid}`, { method: "GET" });
-                  return { ok: true };
-                },
+  deregisterSafewalker: async (sid: string) => {
+    await fetch(`${BACKEND_BASE_URL}/deregister-safewalker?sid=${sid}`, { method: "GET" });
+    return { ok: true };
+  },
 
-                  completeSafewalkerRequest: async (requestId: string) => {
-                    return API.completeStudentRequest(requestId);
-                  },
+  completeSafewalkerRequest: async (requestId: string) => {
+    return API.completeStudentRequest(requestId);
+  },
 
-                    statusUpdate: async (params: {
-                      sid: string;
-                      isStudent: boolean;
-                      isActiveRequest: boolean;
-                      label?: string;
-                      lat: number;
-                      lng: number;
-                    }) => {
-                      const qp = new URLSearchParams({
-                        sid: params.sid,
-                        isStudent: String(params.isStudent),
-                        isActiveRequest: String(params.isActiveRequest),
-                        label: params.label ?? "",
-                        lat: String(params.lat),
-                        lng: String(params.lng),
-                      });
+  statusUpdate: async (params: {
+    sid: string;
+    isStudent: boolean;
+    isActiveRequest: boolean;
+    label?: string;
+    lat: number;
+    lng: number;
+  }) => {
+    const qp = new URLSearchParams({
+      sid: params.sid,
+      isStudent: String(params.isStudent),
+      isActiveRequest: String(params.isActiveRequest),
+      label: params.label ?? "",
+      lat: String(params.lat),
+      lng: String(params.lng),
+    });
 
-                      const res = await fetch(`${BACKEND_BASE_URL}/status-update?${qp.toString()}`, {
-                        method: "GET",
-                      });
-                      const data = await res.json();
-                      return data as StatusUpdateResponse;
-                    },
+    const res = await fetch(`${BACKEND_BASE_URL}/status-update?${qp.toString()}`, {
+      method: "GET",
+    });
+    const data = await res.json();
+    return data as StatusUpdateResponse;
+  },
 };

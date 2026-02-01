@@ -68,4 +68,8 @@ export type StatusUpdateResponse = {
   student_lat?: number;
   student_lng?: number;
   student_label?: string;
+  // Safewalker Polling
+  safewalker_lat?: number;
+  safewalker_lng?: number;
+  match_code?: number;
 };
