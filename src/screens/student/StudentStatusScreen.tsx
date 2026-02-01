@@ -283,7 +283,7 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
               {data?.safewalkerLive && (
                 <View
                   style={{
-                    height: 150,
+                    height: 250,
                     borderRadius: 12,
                     overflow: "hidden",
                     marginTop: 10,

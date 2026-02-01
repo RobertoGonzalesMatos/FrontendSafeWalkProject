@@ -33,6 +33,7 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
 
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const isEnding = React.useRef(false);
 
   // Poll for status
   useEffect(() => {
@@ -62,8 +63,13 @@ export default function SafewalkerActiveWalkScreen({ route, navigation }: Props)
 
         // If not assigned anymore, it implies cancellation or completion
         if (!res.is_assigned) {
-          Alert.alert("Info", "The request has ended.");
-          navigation.popToTop();
+          if (isEnding.current) return;
+          isEnding.current = true;
+
+          setActiveState({ status: "COMPLETED", studentLocation: null });
+          Alert.alert("Info", "The request has ended.", [
+            { text: "OK", onPress: () => navigation.popToTop() }
+          ]);
           return;
         }
 
