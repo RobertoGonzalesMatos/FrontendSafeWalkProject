@@ -7,7 +7,15 @@ import StudentStatusScreen from "../screens/student/StudentStatusScreen";
 export type StudentStackParamList = {
   StudentHome: undefined;
   StudentRequest: undefined;
-  StudentStatus: { requestId: string; code?: string };
+  StudentStatus: {
+    requestId: string;
+    code?: string;
+    // Chatbot context
+    pickupCoords?: { lat: number; lng: number };
+    destCoords?: { lat: number; lng: number };
+    pickupLabel?: string;
+    destinationLabel?: string;
+  };
 };
 
 const Stack = createNativeStackNavigator();

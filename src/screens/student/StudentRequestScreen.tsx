@@ -134,6 +134,11 @@ export default function StudentRequestScreen({ navigation }: Props) {
       navigation.replace("StudentStatus", {
         requestId: res.requestId,
         code: res.code,
+        // Pass coords for chatbot context
+        pickupCoords: coords,
+        destCoords: destCoords,
+        pickupLabel: pickupLabelFinal,
+        destinationLabel: destinationLabel,
       });
     } catch (e: any) {
       Alert.alert("Error", e.message ?? String(e));

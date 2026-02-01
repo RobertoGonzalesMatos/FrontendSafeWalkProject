@@ -8,6 +8,7 @@ import { usePolling } from "../../hooks/usePolling";
 import type { StudentRequestStatusResponse } from "../../api/types";
 import SafewalkerLiveMap from "../../components/SafewalkerLiveMap";
 import { useAuth } from "../../auth/AuthContext";
+import { ChatbotFAB } from "../../components/chatbot";
 
 type Props = NativeStackScreenProps<StudentStackParamList, "StudentStatus">;
 
@@ -125,7 +126,7 @@ function SecondaryButton({
 }
 
 export default function StudentStatusScreen({ route, navigation }: Props) {
-  const { requestId, code } = route.params;
+  const { requestId, code, pickupCoords, destCoords, pickupLabel, destinationLabel } = route.params;
   const [data, setData] = useState<StudentRequestStatusResponse | null>(null);
   const { setActiveRequest } = useAuth();
 
@@ -366,6 +367,14 @@ export default function StudentStatusScreen({ route, navigation }: Props) {
           )}
         </View>
       </View>
+
+      {/* Chatbot FAB for directions assistance */}
+      <ChatbotFAB
+        userLocation={pickupCoords ?? null}
+        destination={destCoords ?? null}
+        pickupLabel={pickupLabel}
+        destinationLabel={destinationLabel}
+      />
     </SafeAreaView>
   );
 }
