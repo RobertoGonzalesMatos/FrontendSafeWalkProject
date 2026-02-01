@@ -217,95 +217,32 @@ export const API = {
 
     if (!res.ok) return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
 
-    try {
-      const data = await res.json();
-      const status = data.matching_status ? (data.match_code ? "ASSIGNED" : "WALKING") : "MATCHING"; // wait, matching_status=true means ASSIGNED.
-      // Backend: "matching_status": true if code_matched==true OR safewalker assigned?
-      // Re-reading main.go:
-      // if (safewalker.Student_latest_location == Location{} || safewalker.code_matched == false) -> matching_status=false?
-      // Wait, main.go line 250: if (student_loc == empty || code_matched == false) -> false.
-      // So matching_status=true ONLY if code_matched == true??
-      // Actually, let's re-read main.go logic carefully.
+    console.log(`[API] getStudentRequestStatus polling SID: ${requestId}`);
+    const data = await res.json();
 
-      // My backend edit:
-      // if (safewalker.Student_latest_location == Location{} || safewalker.code_matched == false)
-      // This means if student is assigned AND code is matched, then matching_status=true.
-      // If student is assigned BUT code NOT matched, matching_status=false.
+    const swLive = (data.safewalker_lat || data.safewalker_lng)
+      ? { lat: data.safewalker_lat, lng: data.safewalker_lng }
+      : null;
 
-      // This is problematic. "ASSIGNED" state is when matched but code NOT verified.
-      // "WALKING" is when code verified.
+    // Backend logic:
+    // matching_status is true if "walking" (code matched).
+    // matching_status is false if just assigned (or searching).
+    // BUT if we have data.match_code, we are at least assigned.
 
-      // Let's adjust main.go logic first, it seems conflated. 
-      // User said "backend matches safewalker". That means ASSIGNED.
-      // Front-end needs to distinguish ASSIGNED vs WALKING.
-      // And also MATCHING (not assigned).
+    const status = data.matching_status ? "WALKING" : (data.match_code ? "ASSIGNED" : "MATCHING");
 
-      // BUT I cannot change main.go logic too much or I break other things.
-      // Let's rely on `safewalker_lat` presence?
-      // If `safewalker_lat` is sent, it means we are at least ASSIGNED?
-      // No, `status-update` is called by student.
-
-      // Let's defer this frontend change until I fix the backend logic in the NEXT tool call if `multi_replace` wasn't enough.
-      // Actually, looking at main.go:250:
-      // if (safewalker.Student_latest_location == Location{} || safewalker.code_matched == false)
-      // This logic returns matching_status=FALSE if NOT walking.
-      // This implies "ASSIGNED" state returns false?
-      // Use `request_safewalk` confirmed "success" for ASSIGNED initial state.
-      // Polling:
-      // If ASSIGNED (but not code matched): matching_status=false.
-      // If MATCHING (no safewalker): matching_status=false.
-
-      // We need to distinguish "ASSIGNED" (waiting for pickup) vs "MATCHING" (searching).
-      // main.go checks `safewalker` from map.
-      // If `safewalker` exists in map, it means we have a session.
-      // Wait, `student` calls `status-update` with `sid`.
-      // If `safewalker` is found, `ok` is true.
-
-      // So if `ok` is true, we are at least ASSIGNED.
-      // Current main.go returns:
-      // if ok:
-      //    if (!isWalking): matching_status=false
-      //    else: matching_status=true
-
-      // So effectively:
-      // matching_status=true => WALKING
-      // matching_status=false => ASSIGNED (if ok) or MATCHING (if !ok)?
-      // Backend sends {success: true, matching_status: false} if found but not walking.
-
-      // So on frontend:
-      // matching_status ? "WALKING" : "ASSIGNED"
-
-      // But we need to know if we are still MATCHING (searching).
-      // If we are searching, we don't have an SID to poll!
-      // `StudentRequestScreen` gets SID from `createStudentRequest`.
-      // So if we have SID, we are ASSIGNED.
-
-      // Wait, `createStudentRequest` returns `safewalker` (ID).
-      // So we have an ID.
-      // If backend says `success: true`, we are ASSIGNED.
-      // If backend says `matching_status: true`, we are WALKING.
-
-      // Okay, so:
-      // matching_status: true => WALKING
-      // matching_status: false => ASSIGNED
-
-      // Parse Safewalker Location:
-      const swLive = (data.safewalker_lat || data.safewalker_lng)
-        ? { lat: data.safewalker_lat, lng: data.safewalker_lng }
-        : null;
-
-      return {
-        requestId,
-        status: data.matching_status ? "WALKING" : "ASSIGNED",
-        etaSeconds: null,
-        safewalkerLive: swLive,
-        safewalkerHeadingDegrees: null,
-        studentCode: data.match_code ? String(data.match_code) : undefined
-      };
-    } catch {
-      return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
-    }
-  },
+    return {
+      requestId,
+      status,
+      etaSeconds: null,
+      safewalkerLive: swLive,
+      safewalkerHeadingDegrees: null,
+      studentCode: data.match_code ? String(data.match_code) : undefined
+    };
+  } catch {
+    return { requestId, status: "MATCHING", etaSeconds: null, safewalkerLive: null };
+  }
+},
 
   cancelStudentRequest: async (requestId: string) => {
     // Backend: /finish-request?sid=...
@@ -313,78 +250,78 @@ export const API = {
     return { ok: true };
   },
 
-  // SafeWalker
-  listSafewalkerRequests: async () => {
-    // Not supported.
-    return [];
-  },
+    // SafeWalker
+    listSafewalkerRequests: async () => {
+      // Not supported.
+      return [];
+    },
 
-  getSafewalkerRequest: async (requestId: string) => {
-    // Not supported.
-    return Promise.reject("Not supported");
-  },
+      getSafewalkerRequest: async (requestId: string) => {
+        // Not supported.
+        return Promise.reject("Not supported");
+      },
 
-  acceptSafewalkerRequest: async (requestId: string) => {
-    // Auto-accepted.
-    return { ok: true };
-  },
+        acceptSafewalkerRequest: async (requestId: string) => {
+          // Auto-accepted.
+          return { ok: true };
+        },
 
-  verifySafewalkerCode: async (requestId: string, code: string) => {
-    // GET /checkcode?sid=...&code=...
-    const qp = new URLSearchParams({
-      sid: requestId,
-      code: code
-    });
-    const res = await fetch(`${BACKEND_BASE_URL}/checkcode?${qp.toString()}`, { method: "GET" });
-    const data = await res.json();
-    if (!data.success) {
-      throw new Error("Incorrect code");
-    }
-    return { ok: true };
-  },
+          verifySafewalkerCode: async (requestId: string, code: string) => {
+            // GET /checkcode?sid=...&code=...
+            const qp = new URLSearchParams({
+              sid: requestId,
+              code: code
+            });
+            const res = await fetch(`${BACKEND_BASE_URL}/checkcode?${qp.toString()}`, { method: "GET" });
+            const data = await res.json();
+            if (!data.success) {
+              throw new Error("Incorrect code");
+            }
+            return { ok: true };
+          },
 
-  declineSafewalkerRequest: async (requestId: string) => {
-    // /finish-request?sid=... (resets safewalker)
-    await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
-    return { ok: true };
-  },
+            declineSafewalkerRequest: async (requestId: string) => {
+              // /finish-request?sid=... (resets safewalker)
+              await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
+              return { ok: true };
+            },
 
-  completeStudentRequest: async (requestId: string) => {
-    // /finish-request?sid=...
-    await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
-    return { ok: true };
-  },
+              completeStudentRequest: async (requestId: string) => {
+                // /finish-request?sid=...
+                await fetch(`${BACKEND_BASE_URL}/finish-request?sid=${requestId}`, { method: "GET" });
+                return { ok: true };
+              },
 
-  deregisterSafewalker: async (sid: string) => {
-    await fetch(`${BACKEND_BASE_URL}/deregister-safewalker?sid=${sid}`, { method: "GET" });
-    return { ok: true };
-  },
+                deregisterSafewalker: async (sid: string) => {
+                  await fetch(`${BACKEND_BASE_URL}/deregister-safewalker?sid=${sid}`, { method: "GET" });
+                  return { ok: true };
+                },
 
-  completeSafewalkerRequest: async (requestId: string) => {
-    return API.completeStudentRequest(requestId);
-  },
+                  completeSafewalkerRequest: async (requestId: string) => {
+                    return API.completeStudentRequest(requestId);
+                  },
 
-  statusUpdate: async (params: {
-    sid: string;
-    isStudent: boolean;
-    isActiveRequest: boolean;
-    label?: string;
-    lat: number;
-    lng: number;
-  }) => {
-    const qp = new URLSearchParams({
-      sid: params.sid,
-      isStudent: String(params.isStudent),
-      isActiveRequest: String(params.isActiveRequest),
-      label: params.label ?? "",
-      lat: String(params.lat),
-      lng: String(params.lng),
-    });
+                    statusUpdate: async (params: {
+                      sid: string;
+                      isStudent: boolean;
+                      isActiveRequest: boolean;
+                      label?: string;
+                      lat: number;
+                      lng: number;
+                    }) => {
+                      const qp = new URLSearchParams({
+                        sid: params.sid,
+                        isStudent: String(params.isStudent),
+                        isActiveRequest: String(params.isActiveRequest),
+                        label: params.label ?? "",
+                        lat: String(params.lat),
+                        lng: String(params.lng),
+                      });
 
-    const res = await fetch(`${BACKEND_BASE_URL}/status-update?${qp.toString()}`, {
-      method: "GET",
-    });
-    const data = await res.json();
-    return data as StatusUpdateResponse;
-  },
+                      const res = await fetch(`${BACKEND_BASE_URL}/status-update?${qp.toString()}`, {
+                        method: "GET",
+                      });
+                      const data = await res.json();
+                      return data as StatusUpdateResponse;
+                    },
 };
